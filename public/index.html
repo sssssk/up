@@ -116,6 +116,9 @@
         <a href="/up/changelog.html" class="px-4 py-2 text-gray-400 hover:text-cyan-400 transition">
           📝 更新日志
         </a>
+        <div id="user-info" class="px-4 py-2 text-gray-400">
+          <!-- 用户信息由JS填充 -->
+        </div>
       </div>
     </div>
     
@@ -208,13 +211,73 @@
     // 全局状态
     let files = [];
     let options = { grades: [], subjects: [], types: [], regions: [] };
+    let token = localStorage.getItem('up_token');
     
     // 初始化
     document.addEventListener('DOMContentLoaded', () => {
       createStars();
-      initUpload();
-      loadOptions();
+      checkAuth();
     });
+    
+    // 检查登录状态
+    async function checkAuth() {
+      if (!token) {
+        window.location.href = '/up/login.html';
+        return;
+      }
+      
+      try {
+        const res = await fetch('/api/check-auth', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        
+        if (!data.success) {
+          localStorage.removeItem('up_token');
+          window.location.href = '/up/login.html';
+          return;
+        }
+        
+        // 已登录，初始化页面
+        initUpload();
+        loadOptions();
+        updateUserInfo(data.user.username);
+      } catch (error) {
+        localStorage.removeItem('up_token');
+        window.location.href = '/up/login.html';
+      }
+    }
+    
+    // 更新用户信息显示
+    function updateUserInfo(username) {
+      const userInfo = document.getElementById('user-info');
+      if (userInfo) {
+        userInfo.innerHTML = `
+          <span class="text-gray-400">${username}</span>
+          <button onclick="logout()" class="text-cyan-400 hover:text-cyan-300 ml-2">退出</button>
+        `;
+      }
+    }
+    
+    // 登出
+    async function logout() {
+      try {
+        await fetch('/api/logout', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (e) {}
+      
+      localStorage.removeItem('up_token');
+      window.location.href = '/up/login.html';
+    }
+    
+    // 带认证的fetch封装
+    async function authFetch(url, options = {}) {
+      options.headers = options.headers || {};
+      options.headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, options);
+    }
     
     // 创建星空背景
     function createStars() {
@@ -267,7 +330,7 @@
       }
       
       try {
-        const res = await fetch('/api/upload', {
+        const res = await authFetch('/api/upload', {
           method: 'POST',
           body: formData
         });
@@ -287,7 +350,7 @@
     // 加载选项
     async function loadOptions() {
       try {
-        const res = await fetch('/api/options');
+        const res = await authFetch('/api/options');
         const data = await res.json();
         if (data.success) {
           options = data.options;
@@ -372,7 +435,7 @@
     // 识别单个文件
     async function recognizeFile(id) {
       try {
-        const res = await fetch(`/api/recognize/${id}`, { method: 'POST' });
+        const res = await authFetch(`/api/recognize/${id}`, { method: 'POST' });
         const data = await res.json();
         
         if (data.success) {
@@ -400,7 +463,7 @@
       const ids = pendingFiles.map(f => f.id);
       
       try {
-        const res = await fetch('/api/recognize-all', {
+        const res = await authFetch('/api/recognize-all', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ids })
@@ -427,7 +490,7 @@
       files[index].extractedInfo[field] = value;
       
       try {
-        await fetch(`/api/files/${files[index].id}`, {
+        await authFetch(`/api/files/${files[index].id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ [field]: value })
@@ -442,7 +505,7 @@
       if (!confirm('确定删除这个文件？')) return;
       
       try {
-        await fetch(`/api/files/${id}`, { method: 'DELETE' });
+        await authFetch(`/api/files/${id}`, { method: 'DELETE' });
         files = files.filter(f => f.id !== id);
         renderFileList();
       } catch (error) {
@@ -467,7 +530,7 @@
       if (!confirm(`确定提交 ${doneFiles.length} 个文件到试卷库？`)) return;
       
       try {
-        const res = await fetch('/api/submit', {
+        const res = await authFetch('/api/submit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ files: doneFiles.map(f => f.id) })

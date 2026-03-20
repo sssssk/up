@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>登录 - 资料上传系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans SC', sans-serif; }
+    
+    :root {
+      --bg-primary: #0a0a1a;
+      --accent-cyan: #00d4ff;
+      --accent-purple: #a855f7;
+    }
+    
+    body {
+      background: var(--bg-primary);
+      min-height: 100vh;
+    }
+    
+    .star-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 3s infinite ease-in-out;
+    }
+    
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.2);
+    }
+  </style>
+</head>
+<body class="text-white flex items-center justify-center">
+  <!-- 星空背景 -->
+  <div class="star-bg" id="stars"></div>
+  
+  <div class="relative z-10 w-full max-w-md px-4">
+    <div class="glass-card rounded-xl p-8">
+      <div class="text-center mb-8">
+        <div class="text-5xl mb-4">📦</div>
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          资料上传系统
+        </h1>
+        <p class="text-gray-400 mt-2">请登录以继续</p>
+      </div>
+      
+      <form id="loginForm" class="space-y-6">
+        <div>
+          <label class="block text-gray-400 mb-2">用户名</label>
+          <input 
+            type="text" 
+            id="username" 
+            class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white"
+            placeholder="请输入用户名"
+            required
+          >
+        </div>
+        
+        <div>
+          <label class="block text-gray-400 mb-2">密码</label>
+          <input 
+            type="password" 
+            id="password" 
+            class="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white"
+            placeholder="请输入密码"
+            required
+          >
+        </div>
+        
+        <div id="errorMsg" class="text-red-400 text-sm hidden"></div>
+        
+        <button type="submit" class="w-full py-3 btn-primary rounded-lg font-semibold">
+          登 录
+        </button>
+      </form>
+      
+      <div class="mt-6 text-center">
+        <a href="/" class="text-gray-400 hover:text-cyan-400 text-sm">
+          ← 返回首页
+        </a>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // 创建星空背景
+    const container = document.getElementById('stars');
+    for (let i = 0; i < 100; i++) {
+      const star = document.createElement('div');
+      star.className = 'star';
+      star.style.left = Math.random() * 100 + '%';
+      star.style.top = Math.random() * 100 + '%';
+      star.style.width = Math.random() * 2 + 1 + 'px';
+      star.style.height = star.style.width;
+      star.style.animationDelay = Math.random() * 3 + 's';
+      container.appendChild(star);
+    }
+    
+    // 检查是否已登录
+    const token = localStorage.getItem('up_token');
+    if (token) {
+      fetch('/api/check-auth', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = '/up/';
+        } else {
+          localStorage.removeItem('up_token');
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem('up_token');
+      });
+    }
+    
+    // 登录表单
+    document.getElementById('loginForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('errorMsg');
+      
+      errorMsg.classList.add('hidden');
+      
+      try {
+        const res = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          localStorage.setItem('up_token', data.token);
+          window.location.href = '/up/';
+        } else {
+          errorMsg.textContent = data.error;
+          errorMsg.classList.remove('hidden');
+        }
+      } catch (error) {
+        errorMsg.textContent = '登录失败，请稍后重试';
+        errorMsg.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

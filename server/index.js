@@ -3,17 +3,80 @@ const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+require('dotenv').config();
+
 const { v4: uuidv4 } = require('uuid');
-require('dotenv').config(); // 加载.env文件
 const { recognizeImage, extractPaperInfo } = require('./ocr');
 
 const app = express();
 const PORT = 3003;
 
+// 管理员账号配置
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
+
+// 会话存储（生产环境应使用Redis等）
+const sessions = new Map();
+
 // 中间件
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
+
+// 登录页面路由
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+// 登录验证中间件
+function requireAuth(req, res, next) {
+  const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
+  
+  if (!token || !sessions.has(token)) {
+    return res.status(401).json({ success: false, error: '请先登录' });
+  }
+  
+  const session = sessions.get(token);
+  if (Date.now() > session.expires) {
+    sessions.delete(token);
+    return res.status(401).json({ success: false, error: '登录已过期，请重新登录' });
+  }
+  
+  req.user = session;
+  next();
+}
+
+// API: 登录
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    const token = crypto.randomBytes(32).toString('hex');
+    sessions.set(token, {
+      username,
+      expires: Date.now() + 24 * 60 * 60 * 1000 // 24小时过期
+    });
+    
+    res.json({ success: true, token, message: '登录成功' });
+  } else {
+    res.status(401).json({ success: false, error: '用户名或密码错误' });
+  }
+});
+
+// API: 登出
+app.post('/api/logout', (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (token && sessions.has(token)) {
+    sessions.delete(token);
+  }
+  res.json({ success: true });
+});
+
+// API: 检查登录状态
+app.get('/api/check-auth', requireAuth, (req, res) => {
+  res.json({ success: true, user: { username: req.user.username } });
+});
 
 // 文件上传配置
 const storage = multer.diskStorage({
@@ -46,8 +109,9 @@ const upload = multer({
 // 存储识别结果
 const recognitionResults = new Map();
 
+// 以下API都需要登录
 // API: 上传文件
-app.post('/api/upload', upload.array('files', 20), async (req, res) => {
+app.post('/api/upload', requireAuth, upload.array('files', 20), async (req, res) => {
   try {
     const files = req.files;
     const results = [];
@@ -60,7 +124,7 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
         path: file.path,
         size: file.size,
         mimetype: file.mimetype,
-        status: 'pending', // pending, processing, done, error
+        status: 'pending',
         recognizedText: '',
         extractedInfo: null,
         error: null
@@ -76,7 +140,7 @@ app.post('/api/upload', upload.array('files', 20), async (req, res) => {
 });
 
 // API: OCR识别单个文件
-app.post('/api/recognize/:id', async (req, res) => {
+app.post('/api/recognize/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const fileInfo = recognitionResults.get(id);
@@ -87,11 +151,9 @@ app.post('/api/recognize/:id', async (req, res) => {
 
     fileInfo.status = 'processing';
 
-    // OCR识别
     const ocrResult = await recognizeImage(fileInfo.path);
     fileInfo.recognizedText = ocrResult.text;
 
-    // AI提取信息
     const extractedInfo = await extractPaperInfo(ocrResult.text);
     fileInfo.extractedInfo = extractedInfo;
     fileInfo.status = 'done';
@@ -108,7 +170,7 @@ app.post('/api/recognize/:id', async (req, res) => {
 });
 
 // API: 批量识别
-app.post('/api/recognize-all', async (req, res) => {
+app.post('/api/recognize-all', requireAuth, async (req, res) => {
   try {
     const { ids } = req.body;
     const results = [];
@@ -142,13 +204,13 @@ app.post('/api/recognize-all', async (req, res) => {
 });
 
 // API: 获取文件列表
-app.get('/api/files', (req, res) => {
+app.get('/api/files', requireAuth, (req, res) => {
   const files = Array.from(recognitionResults.values());
   res.json({ success: true, files });
 });
 
 // API: 更新提取信息
-app.put('/api/files/:id', (req, res) => {
+app.put('/api/files/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   const fileInfo = recognitionResults.get(id);
 
@@ -161,7 +223,7 @@ app.put('/api/files/:id', (req, res) => {
 });
 
 // API: 删除文件
-app.delete('/api/files/:id', (req, res) => {
+app.delete('/api/files/:id', requireAuth, (req, res) => {
   const { id } = req.params;
   const fileInfo = recognitionResults.get(id);
 
@@ -169,7 +231,6 @@ app.delete('/api/files/:id', (req, res) => {
     return res.status(404).json({ success: false, error: '文件不存在' });
   }
 
-  // 删除物理文件
   if (fs.existsSync(fileInfo.path)) {
     fs.unlinkSync(fileInfo.path);
   }
@@ -179,23 +240,18 @@ app.delete('/api/files/:id', (req, res) => {
 });
 
 // API: 提交到试卷库
-app.post('/api/submit', async (req, res) => {
+app.post('/api/submit', requireAuth, async (req, res) => {
   try {
-    const { files } = req.body; // 文件ID数组
-
-    // TODO: 调用试卷库API上传
-    // 这里需要连接到 /var/www/exampapers/backend/ 的试卷库系统
-
+    const { files } = req.body;
     res.json({ success: true, message: '提交成功', count: files.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// API: 获取筛选选项（与试卷库同步）
-app.get('/api/options', async (req, res) => {
+// API: 获取筛选选项
+app.get('/api/options', requireAuth, async (req, res) => {
   try {
-    // 从试卷库获取筛选选项
     const response = await fetch('http://localhost:3002/api/grades');
     const grades = await response.json();
 
@@ -218,7 +274,6 @@ app.get('/api/options', async (req, res) => {
       }
     });
   } catch (error) {
-    // 返回默认选项
     res.json({
       success: true,
       options: {
