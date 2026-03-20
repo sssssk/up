@@ -8,556 +8,477 @@
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Noto Sans SC', sans-serif; }
+    body { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%); min-height: 100vh; }
+    .star-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+    .star { position: absolute; background: white; border-radius: 50%; animation: twinkle 3s infinite ease-in-out; }
+    @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+    .glass-card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .upload-zone { border: 2px dashed rgba(96, 165, 250, 0.5); transition: all 0.3s; }
+    .upload-zone:hover, .upload-zone.dragover { border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+    select, input { background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); color: #e5e7eb; }
+    select:focus, input:focus { outline: none; border-color: #60a5fa; }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); }
+    .file-card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.05); }
     
-    :root {
-      --bg-primary: #0a0a1a;
-      --bg-secondary: #12122a;
-      --accent-cyan: #00d4ff;
-      --accent-purple: #a855f7;
-      --accent-pink: #ec4899;
+    /* Tab样式 */
+    .nav-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+    .nav-tab { 
+      padding: 12px 24px; 
+      background: rgba(30, 41, 59, 0.5); 
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      color: #9ca3af;
     }
-    
-    body {
-      background: var(--bg-primary);
-      min-height: 100vh;
+    .nav-tab:hover { background: rgba(59, 130, 246, 0.2); }
+    .nav-tab.active { 
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      color: white;
+      border-color: transparent;
     }
-    
-    .star-bg {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
-      z-index: 0;
-    }
-    
-    .star {
-      position: absolute;
-      background: white;
-      border-radius: 50%;
-      animation: twinkle 3s infinite ease-in-out;
-    }
-    
-    @keyframes twinkle {
-      0%, 100% { opacity: 0.3; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.2); }
-    }
-    
-    .content-wrapper {
-      position: relative;
-      z-index: 1;
-    }
-    
-    .glass-card {
-      background: rgba(255, 255, 255, 0.05);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .upload-zone {
-      border: 2px dashed rgba(255, 255, 255, 0.2);
-      transition: all 0.3s ease;
-    }
-    
-    .upload-zone:hover, .upload-zone.dragover {
-      border-color: var(--accent-cyan);
-      background: rgba(0, 212, 255, 0.1);
-    }
-    
-    .btn-primary {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      transition: all 0.3s ease;
-    }
-    
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
-    }
-    
-    .status-pending { color: #9ca3af; }
-    .status-processing { color: #fbbf24; }
-    .status-done { color: #34d399; }
-    .status-error { color: #f87171; }
-    
-    .tab-active {
-      border-bottom: 2px solid var(--accent-cyan);
-      color: var(--accent-cyan);
-    }
+    .section { display: none; }
+    .section.active { display: block; }
   </style>
 </head>
 <body class="text-white">
-  <!-- 星空背景 -->
   <div class="star-bg" id="stars"></div>
   
-  <div class="content-wrapper container mx-auto px-4 py-8 max-w-7xl">
-    <!-- 顶部导航 -->
-    <div class="flex items-center justify-between mb-8">
+  <div class="relative z-10 container mx-auto px-4 py-8 max-w-6xl">
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold"><span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">📦 资料上传系统</span></h1>
       <div class="flex items-center gap-4">
-        <a href="/" class="text-gray-400 hover:text-white transition">
-          ← 返回首页
-        </a>
-        <h1 class="text-2xl font-bold">
-          <span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-            📦 资料上传系统
-          </span>
-        </h1>
-      </div>
-      <div class="flex gap-4">
-        <button onclick="showTab('upload')" id="tab-upload" class="tab-active px-4 py-2 transition">
-          📤 上传识别
-        </button>
-        <button onclick="showTab('history')" id="tab-history" class="px-4 py-2 text-gray-400 transition">
-          📋 上传记录
-        </button>
-        <button onclick="showTab('settings')" id="tab-settings" class="px-4 py-2 text-gray-400 transition">
-          ⚙️ 系统设置
-        </button>
-        <a href="/up/changelog.html" class="px-4 py-2 text-gray-400 hover:text-cyan-400 transition">
-          📝 更新日志
-        </a>
-        <div id="user-info" class="px-4 py-2 text-gray-400">
-          <!-- 用户信息由JS填充 -->
-        </div>
+        <span class="text-gray-400" id="userInfo"></span>
+        <button onclick="logout()" class="text-gray-400 hover:text-white text-sm">退出</button>
       </div>
     </div>
-    
-    <!-- Tab: 上传识别 -->
-    <div id="panel-upload">
-      <!-- 上传区域 -->
-      <div class="glass-card rounded-xl p-8 mb-6">
+
+    <!-- Tab导航 -->
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="showSection('upload')">📤 资料上传</button>
+      <button class="nav-tab" onclick="showSection('manage')">📋 试卷管理</button>
+      <button class="nav-tab" onclick="showSection('changelog')">📝 更新日志</button>
+    </div>
+
+    <!-- 资料上传Tab -->
+    <div id="upload" class="section active">
+      <div class="glass-card rounded-xl p-6 mb-6">
         <div id="upload-zone" class="upload-zone rounded-xl p-12 text-center cursor-pointer">
-          <div class="text-6xl mb-4">📤</div>
-          <p class="text-xl mb-2">拖拽文件到这里，或点击选择</p>
-          <p class="text-gray-400 text-sm">支持批量上传（最多20个文件），支持 JPG、PNG、PDF</p>
-          <input type="file" id="file-input" multiple accept="image/*,.pdf" class="hidden">
+          <div class="text-4xl mb-4">📁</div>
+          <p class="text-gray-400 mb-2">点击或拖拽文件到此处上传</p>
+          <p class="text-gray-500 text-sm">支持 PDF、图片格式，最多20个文件</p>
         </div>
+        <input type="file" id="file-input" multiple accept=".pdf,image/*" class="hidden">
       </div>
-      
-      <!-- 文件列表 -->
-      <div class="glass-card rounded-xl p-6">
+
+      <div class="glass-card rounded-xl p-6 mb-6" id="file-panel" style="display: none;">
         <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-semibold">📊 文件列表</h2>
-          <div class="flex gap-3">
-            <button onclick="recognizeAll()" class="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition">
-              🔍 全部识别
-            </button>
-            <button onclick="submitAll()" class="px-4 py-2 btn-primary rounded-lg">
-              📤 批量提交
-            </button>
+          <h2 class="text-lg font-semibold">待处理文件 (<span id="fileCount">0</span>)</h2>
+          <div class="flex gap-2">
+            <button onclick="submitAll()" class="btn-primary px-6 py-2 rounded-lg text-sm">提交到试卷库</button>
+            <button onclick="clearAll()" class="px-4 py-2 rounded-lg text-sm bg-gray-600 hover:bg-gray-500">清空</button>
           </div>
         </div>
-        
-        <div class="overflow-x-auto">
-          <table class="w-full">
-            <thead>
-              <tr class="text-left text-gray-400 border-b border-gray-700">
-                <th class="pb-3 pr-4">#</th>
-                <th class="pb-3 pr-4">文件名</th>
-                <th class="pb-3 pr-4">年级</th>
-                <th class="pb-3 pr-4">科目</th>
-                <th class="pb-3 pr-4">类型</th>
-                <th class="pb-3 pr-4">地区</th>
-                <th class="pb-3 pr-4">学校</th>
-                <th class="pb-3 pr-4">识别结果</th>
-                <th class="pb-3 pr-4">状态</th>
-                <th class="pb-3">操作</th>
-              </tr>
-            </thead>
-            <tbody id="file-list">
-              <tr>
-                <td colspan="10" class="py-8 text-center text-gray-500">
-                  请先上传文件
-                </td>
-              </tr>
-            </tbody>
-          </table>
+        <div id="file-list" class="space-y-3"></div>
+      </div>
+
+      <div class="glass-card rounded-xl p-6">
+        <h3 class="text-lg font-semibold mb-3">📋 命名规则</h3>
+        <div class="text-gray-400 text-sm">
+          <p>格式：<code class="bg-gray-800 px-2 py-1 rounded">年级-学年起-学年止-学期-科目-学校-考试名</code></p>
+          <p class="mt-2">示例：<code class="bg-gray-800 px-2 py-1 rounded">9-2025-2026-2-数学-雅礼洋湖-一模</code></p>
         </div>
       </div>
     </div>
-    
-    <!-- Tab: 上传记录 -->
-    <div id="panel-history" class="hidden">
+
+    <!-- 试卷管理Tab -->
+    <div id="manage" class="section">
       <div class="glass-card rounded-xl p-6">
-        <h2 class="text-xl font-semibold mb-4">📋 上传记录</h2>
-        <p class="text-gray-400">暂无记录</p>
+        <div class="flex items-center gap-4 mb-4 flex-wrap">
+          <input type="text" id="searchInput" placeholder="搜索试卷名称..." class="flex-1 min-w-48 px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 focus:border-cyan-400 focus:outline-none">
+          <select id="filterGrade" onchange="loadPapers()" class="px-4 py-2 rounded-lg">
+            <option value="">全部年级</option>
+            <option value="7">初一</option>
+            <option value="8">初二</option>
+            <option value="9">初三</option>
+          </select>
+          <select id="filterSubject" onchange="loadPapers()" class="px-4 py-2 rounded-lg">
+            <option value="">全部科目</option>
+            <option value="1">语文</option>
+            <option value="2">数学</option>
+            <option value="3">英语</option>
+            <option value="4">物理</option>
+            <option value="5">化学</option>
+          </select>
+          <select id="filterType" onchange="loadPapers()" class="px-4 py-2 rounded-lg">
+            <option value="">全部类型</option>
+            <option value="1">月考</option>
+            <option value="2">期中</option>
+            <option value="3">期末</option>
+            <option value="4">一模</option>
+            <option value="5">二模</option>
+            <option value="6">开学</option>
+            <option value="7">单元</option>
+          </select>
+          <button onclick="searchPapers()" class="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg">搜索</button>
+          <button onclick="showBatchDeleteModal()" class="px-6 py-2 bg-red-600 hover:bg-red-500 rounded-lg">🗑️ 批量删除</button>
+        </div>
+
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-700">
+              <th class="p-3 text-left w-8"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+              <th class="p-3 text-left">标题</th>
+              <th class="p-3 text-center w-20">年级</th>
+              <th class="p-3 text-center w-20">科目</th>
+              <th class="p-3 text-center w-24">类型</th>
+              <th class="p-3 text-center w-24">下载</th>
+              <th class="p-3 text-center w-32">操作</th>
+            </tr>
+          </thead>
+          <tbody id="paperList"></tbody>
+        </table>
+
+        <div class="flex items-center justify-between mt-4">
+          <span class="text-gray-400 text-sm" id="pageInfo">第 1 页</span>
+          <div class="flex gap-2">
+            <button onclick="prevPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">上一页</button>
+            <button onclick="nextPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">下一页</button>
+          </div>
+        </div>
       </div>
     </div>
-    
-    <!-- Tab: 系统设置 -->
-    <div id="panel-settings" class="hidden">
+
+    <!-- 更新日志Tab -->
+    <div id="changelog" class="section">
       <div class="glass-card rounded-xl p-6">
-        <h2 class="text-xl font-semibold mb-4">⚙️ 系统设置</h2>
+        <h2 class="text-xl font-bold mb-6">📝 更新日志</h2>
         
-        <div class="space-y-4 max-w-xl">
-          <div>
-            <label class="block text-gray-400 mb-2">试卷库API地址</label>
-            <input type="text" value="http://159.75.5.234:3002" class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg" readonly>
+        <div class="space-y-6">
+          <div class="border-l-2 border-cyan-500 pl-4">
+            <div class="text-cyan-400 font-semibold">2026-03-20</div>
+            <div class="text-gray-300 mt-2">
+              <p class="mb-2">✅ 修复学校名识别问题（支持"雅礼洋湖"、"师大思沁"等多字学校）</p>
+              <p class="mb-2">✅ 修复3002端口冲突问题（改用3005端口）</p>
+              <p class="mb-2">✅ 修复试卷管理页面下载链接错误</p>
+              <p class="mb-2">✅ 上传试卷默认改为免费</p>
+              <p>✅ 添加登录保护</p>
+            </div>
           </div>
-          <div>
-            <label class="block text-gray-400 mb-2">管理账号</label>
-            <input type="text" value="admin" class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg">
-          </div>
-          <div>
-            <label class="block text-gray-400 mb-2">腾讯云OCR</label>
-            <span class="text-green-400">✓ 已配置</span>
+          
+          <div class="border-l-2 border-purple-500 pl-4">
+            <div class="text-purple-400 font-semibold">2026-03-18</div>
+            <div class="text-gray-300 mt-2">
+              <p class="mb-2">✅ 完成基础功能：批量上传、文件名解析、试卷管理</p>
+              <p class="mb-2">✅ 学期显示改为数字（1=上学期，2=下学期）</p>
+              <p>✅ 文件命名格式统一</p>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-  
+
+  <!-- 批量删除确认框 -->
+  <div id="deleteModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+    <div class="bg-gray-800 rounded-xl p-6 max-w-md">
+      <h3 class="text-lg font-bold mb-4">确认删除</h3>
+      <p class="text-gray-400 mb-4">将删除 <span id="deleteCount">0</span> 个试卷，此操作不可恢复！</p>
+      <input type="password" id="deletePassword" placeholder="输入管理员密码" class="w-full px-4 py-2 rounded bg-gray-700 mb-4">
+      <div class="flex gap-4">
+        <button onclick="confirmBatchDelete()" class="flex-1 py-2 bg-red-600 hover:bg-red-500 rounded">确认删除</button>
+        <button onclick="closeDeleteModal()" class="flex-1 py-2 bg-gray-600 hover:bg-gray-500 rounded">取消</button>
+      </div>
+    </div>
+  </div>
+
   <script>
-    // 全局状态
-    let files = [];
-    let options = { grades: [], subjects: [], types: [], regions: [] };
-    let token = localStorage.getItem('up_token');
-    
-    // 初始化
-    document.addEventListener('DOMContentLoaded', () => {
-      createStars();
-      checkAuth();
-    });
-    
-    // 检查登录状态
-    async function checkAuth() {
-      if (!token) {
-        window.location.href = '/up/login.html';
-        return;
-      }
-      
-      try {
-        const res = await fetch('/api/check-auth', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        
-        if (!data.success) {
-          localStorage.removeItem('up_token');
-          window.location.href = '/up/login.html';
-          return;
-        }
-        
-        // 已登录，初始化页面
-        initUpload();
-        loadOptions();
-        updateUserInfo(data.user.username);
-      } catch (error) {
-        localStorage.removeItem('up_token');
-        window.location.href = '/up/login.html';
-      }
-    }
-    
-    // 更新用户信息显示
-    function updateUserInfo(username) {
-      const userInfo = document.getElementById('user-info');
-      if (userInfo) {
-        userInfo.innerHTML = `
-          <span class="text-gray-400">${username}</span>
-          <button onclick="logout()" class="text-cyan-400 hover:text-cyan-300 ml-2">退出</button>
-        `;
-      }
-    }
-    
-    // 登出
-    async function logout() {
-      try {
-        await fetch('/api/logout', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-      } catch (e) {}
-      
-      localStorage.removeItem('up_token');
+    // 登录检查
+    const token = localStorage.getItem('up_token');
+    if (!token) {
       window.location.href = '/up/login.html';
     }
+
+    let files = [];
+    let papers = [];
+    let page = 1;
+    let pageSize = 20;
+    let selectedIds = new Set();
+
+    const GRADE_NAMES = { 7: '初一', 8: '初二', 9: '初三' };
+    const SUBJECT_NAMES = { 1: '语文', 2: '数学', 3: '英语', 4: '物理', 5: '化学' };
+    const TYPE_NAMES = { 1: '月考', 2: '期中', 3: '期末', 4: '一模', 5: '二模', 6: '开学', 7: '单元' };
+    const GRADE_IDS = { '7': 7, '8': 8, '9': 9, '七': 7, '八': 8, '九': 9, '初一': 7, '初二': 8, '初三': 9 };
+    const SUBJECT_IDS = { '语文': 1, '数学': 2, '英语': 3, '物理': 4, '化学': 5 };
     
-    // 带认证的fetch封装
-    async function authFetch(url, options = {}) {
-      options.headers = options.headers || {};
-      options.headers['Authorization'] = `Bearer ${token}`;
-      return fetch(url, options);
-    }
-    
-    // 创建星空背景
+    // 学校列表：按长度降序排列，优先匹配最长的
+    const SCHOOLS = [
+      '师大思沁', '师大附中梅溪湖', '长郡梅溪湖', '雅礼梅溪湖',
+      '雅礼洋湖', '长郡双语', '雅礼实验', '麓山国际',
+      '师大附中', '长郡', '雅礼', '青一', '广益', '华益', '长梅', '周南', '明德', '一中', '双语', '博才', '麓山', '培粹'
+    ];
+
+    document.addEventListener('DOMContentLoaded', () => { createStars(); checkAuth(); });
+
     function createStars() {
-      const container = document.getElementById('stars');
-      for (let i = 0; i < 150; i++) {
-        const star = document.createElement('div');
-        star.className = 'star';
-        star.style.left = Math.random() * 100 + '%';
-        star.style.top = Math.random() * 100 + '%';
-        star.style.width = Math.random() * 2 + 1 + 'px';
-        star.style.height = star.style.width;
-        star.style.animationDelay = Math.random() * 3 + 's';
-        star.style.animationDuration = (Math.random() * 2 + 2) + 's';
-        container.appendChild(star);
+      const c = document.getElementById('stars');
+      for (let i = 0; i < 100; i++) {
+        const s = document.createElement('div');
+        s.className = 'star';
+        s.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*2+1}px;height:${s.style.width};animation-delay:${Math.random()*3}s`;
+        c.appendChild(s);
       }
     }
-    
-    // 初始化上传
-    function initUpload() {
-      const zone = document.getElementById('upload-zone');
-      const input = document.getElementById('file-input');
+
+    // Tab切换
+    function showSection(name) {
+      document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById(name).classList.add('active');
+      event.target.classList.add('active');
       
-      zone.addEventListener('click', () => input.click());
-      
-      zone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        zone.classList.add('dragover');
-      });
-      
-      zone.addEventListener('dragleave', () => {
-        zone.classList.remove('dragover');
-      });
-      
-      zone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        zone.classList.remove('dragover');
-        handleFiles(e.dataTransfer.files);
-      });
-      
-      input.addEventListener('change', (e) => {
-        handleFiles(e.target.files);
-      });
+      if (name === 'manage') loadPapers();
     }
-    
-    // 处理文件上传
-    async function handleFiles(fileList) {
-      const formData = new FormData();
-      for (const file of fileList) {
-        formData.append('files', file);
-      }
-      
+
+    async function checkAuth() {
       try {
-        const res = await authFetch('/api/upload', {
-          method: 'POST',
-          body: formData
-        });
+        const res = await fetch('/up/api/check-auth', { headers: { 'Authorization': `Bearer ${token}` } });
         const data = await res.json();
-        
+        if (!data.success) { localStorage.removeItem('up_token'); window.location.href = '/up/login.html'; return; }
+        document.getElementById('userInfo').textContent = `👤 ${data.user.username}`;
+        initUpload();
+      } catch (e) { localStorage.removeItem('up_token'); window.location.href = '/up/login.html'; }
+    }
+
+    function initUpload() {
+      const zone = document.getElementById('upload-zone'), input = document.getElementById('file-input');
+      zone.onclick = () => input.click();
+      zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragover'); };
+      zone.ondragleave = () => zone.classList.remove('dragover');
+      zone.ondrop = e => { e.preventDefault(); zone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); };
+      input.onchange = e => handleFiles(e.target.files);
+    }
+
+    async function handleFiles(fl) {
+      const fd = new FormData();
+      for (const f of fl) fd.append('files', f);
+      try {
+        const res = await authFetch('/up/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
         if (data.success) {
+          data.files.forEach(f => { f.info = parseFilename(f.filename); f.newName = generateName(f.info); });
           files = [...files, ...data.files];
           renderFileList();
-        } else {
-          alert('上传失败: ' + data.error);
-        }
-      } catch (error) {
-        alert('上传失败: ' + error.message);
-      }
+        } else alert('上传失败: ' + data.error);
+      } catch (e) { alert('上传失败: ' + e.message); }
     }
-    
-    // 加载选项
-    async function loadOptions() {
-      try {
-        const res = await authFetch('/api/options');
-        const data = await res.json();
-        if (data.success) {
-          options = data.options;
-        }
-      } catch (e) {
-        console.error('加载选项失败', e);
-      }
+
+    function parseFilename(name) {
+      const info = { grade: '', yearStart: '', yearEnd: '', semester: '', school: '', type: '', subject: '' };
+      const n = name.replace(/\.[^.]+$/, '');
+      const ym = n.match(/(20\d{2})[-_年]?(20\d{2})/);
+      if (ym) { info.yearStart = ym[1]; info.yearEnd = ym[2]; }
+      for (const [k, v] of Object.entries(GRADE_IDS)) if (n.includes(k)) { info.grade = v; break; }
+      if (n.includes('上')) info.semester = 1; else if (n.includes('下')) info.semester = 2;
+      for (const [k, v] of Object.entries(SUBJECT_IDS)) if (n.includes(k)) { info.subject = v; break; }
+      if (n.includes('月考')) info.type = 1;
+      else if (n.includes('期中')) info.type = 2;
+      else if (n.includes('期末')) info.type = 3;
+      else if (n.includes('一模')) info.type = 4;
+      else if (n.includes('二模')) info.type = 5;
+      else if (n.includes('开学') || n.includes('入学')) info.type = 6;
+      else if (n.includes('单元')) info.type = 7;
+      for (const s of SCHOOLS) if (n.includes(s)) { info.school = s; break; }
+      return info;
     }
-    
-    // 渲染文件列表
+
+    function generateName(info) {
+      if (!info.grade) return '';
+      const parts = [info.grade, info.yearStart || new Date().getFullYear(), info.yearEnd || new Date().getFullYear() + 1];
+      if (info.semester) parts.push(info.semester);
+      if (info.subject) parts.push(SUBJECT_NAMES[info.subject]);
+      if (info.school) parts.push(info.school);
+      if (info.type) parts.push(TYPE_NAMES[info.type]);
+      return parts.join('-');
+    }
+
     function renderFileList() {
-      const tbody = document.getElementById('file-list');
+      const panel = document.getElementById('file-panel');
+      if (files.length === 0) { panel.style.display = 'none'; return; }
+      panel.style.display = 'block';
+      document.getElementById('fileCount').textContent = files.length;
       
-      if (files.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-gray-500">请先上传文件</td></tr>';
-        return;
-      }
-      
-      tbody.innerHTML = files.map((file, index) => `
-        <tr class="border-b border-gray-800 hover:bg-white/5">
-          <td class="py-3 pr-4">${index + 1}</td>
-          <td class="py-3 pr-4">
-            <div class="flex items-center gap-2">
-              <span>${file.extractedInfo?.generatedName || file.filename}</span>
-              <button onclick="editFile(${index})" class="text-gray-400 hover:text-white">✏️</button>
-            </div>
-          </td>
-          <td class="py-3 pr-4">
-            ${renderSelect(file.extractedInfo?.grade, options.grades, 'grade', index)}
-          </td>
-          <td class="py-3 pr-4">
-            ${renderSelect(file.extractedInfo?.subject, options.subjects, 'subject', index)}
-          </td>
-          <td class="py-3 pr-4">
-            ${renderSelect(file.extractedInfo?.type, options.types, 'type', index)}
-          </td>
-          <td class="py-3 pr-4">
-            ${renderSelect(file.extractedInfo?.region, options.regions, 'region', index)}
-          </td>
-          <td class="py-3 pr-4">
-            <input type="text" value="${file.extractedInfo?.school || ''}" 
-              class="w-24 px-2 py-1 bg-white/5 border border-white/10 rounded text-sm"
-              onchange="updateField(${index}, 'school', this.value)" placeholder="学校">
-          </td>
-          <td class="py-3 pr-4">
-            <button onclick="recognizeFile('${file.id}')" class="text-cyan-400 hover:text-cyan-300">
-              ${file.status === 'done' ? '✅ 已识别' : file.status === 'processing' ? '⏳ 识别中...' : '🔍 识别'}
-            </button>
-          </td>
-          <td class="py-3 pr-4">
-            <span class="status-${file.status}">${getStatusText(file.status)}</span>
-          </td>
-          <td class="py-3">
-            <button onclick="deleteFile('${file.id}')" class="text-red-400 hover:text-red-300">🗑️</button>
+      document.getElementById('file-list').innerHTML = files.map((f, i) => `
+        <div class="file-card rounded-lg p-4">
+          <div class="text-gray-400 text-sm mb-2 truncate">📄 ${f.filename}</div>
+          <div class="text-cyan-400 font-medium mb-3">${f.newName || '(请填写信息生成文件名)'}</div>
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <select onchange="updateField(${i},'grade',this.value)" class="px-2 py-1 rounded">
+              <option value="">年级</option>
+              <option value="7" ${f.info.grade==7?'selected':''}>初一</option>
+              <option value="8" ${f.info.grade==8?'selected':''}>初二</option>
+              <option value="9" ${f.info.grade==9?'selected':''}>初三</option>
+            </select>
+            <input type="text" value="${f.info.yearStart}" onchange="updateField(${i},'yearStart',this.value)" class="w-16 px-2 py-1 rounded text-center" placeholder="年起">
+            <span class="text-gray-500">-</span>
+            <input type="text" value="${f.info.yearEnd}" onchange="updateField(${i},'yearEnd',this.value)" class="w-16 px-2 py-1 rounded text-center" placeholder="年止">
+            <select onchange="updateField(${i},'semester',this.value)" class="px-2 py-1 rounded">
+              <option value="">学期</option>
+              <option value="1" ${f.info.semester==1?'selected':''}>1</option>
+              <option value="2" ${f.info.semester==2?'selected':''}>2</option>
+            </select>
+            <select onchange="updateField(${i},'subject',this.value)" class="px-2 py-1 rounded">
+              <option value="">科目</option>
+              <option value="1" ${f.info.subject==1?'selected':''}>语文</option>
+              <option value="2" ${f.info.subject==2?'selected':''}>数学</option>
+              <option value="3" ${f.info.subject==3?'selected':''}>英语</option>
+              <option value="4" ${f.info.subject==4?'selected':''}>物理</option>
+              <option value="5" ${f.info.subject==5?'selected':''}>化学</option>
+            </select>
+            <input type="text" value="${f.info.school}" onchange="updateField(${i},'school',this.value)" class="w-28 px-2 py-1 rounded" placeholder="学校">
+            <select onchange="updateField(${i},'type',this.value)" class="px-2 py-1 rounded">
+              <option value="">类型</option>
+              <option value="1" ${f.info.type==1?'selected':''}>月考</option>
+              <option value="2" ${f.info.type==2?'selected':''}>期中</option>
+              <option value="3" ${f.info.type==3?'selected':''}>期末</option>
+              <option value="4" ${f.info.type==4?'selected':''}>一模</option>
+              <option value="5" ${f.info.type==5?'selected':''}>二模</option>
+              <option value="6" ${f.info.type==6?'selected':''}>开学</option>
+              <option value="7" ${f.info.type==7?'selected':''}>单元</option>
+            </select>
+            <button onclick="removeFile(${i})" class="ml-auto text-red-400 hover:text-red-300 px-2 py-1">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function updateField(i, field, val) {
+      files[i].info[field] = val;
+      files[i].newName = generateName(files[i].info);
+      renderFileList();
+    }
+
+    function removeFile(i) { files.splice(i, 1); renderFileList(); }
+    function clearAll() { files = []; renderFileList(); }
+
+    async function submitAll() {
+      const valid = files.filter(f => f.newName);
+      if (!valid.length) { alert('请先生成文件名'); return; }
+      try {
+        const res = await authFetch('/up/api/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: valid }) });
+        const data = await res.json();
+        if (data.success) { alert(`成功提交 ${data.count} 个文件`); files = []; renderFileList(); }
+        else alert('提交失败: ' + data.error);
+      } catch (e) { alert('提交失败: ' + e.message); }
+    }
+
+    // 试卷管理
+    async function loadPapers() {
+      try {
+        const res = await fetch('/sjxz/api/papers');
+        const data = await res.json();
+        papers = data.papers || [];
+        applyFilters();
+      } catch (e) { console.error('加载失败:', e); }
+    }
+
+    function applyFilters() {
+      const grade = document.getElementById('filterGrade').value;
+      const subject = document.getElementById('filterSubject').value;
+      const type = document.getElementById('filterType').value;
+      const search = document.getElementById('searchInput').value.toLowerCase();
+      let filtered = papers.filter(p => {
+        if (grade && p.grade_id != grade) return false;
+        if (subject && p.subject_id != subject) return false;
+        if (type && p.type_id != type) return false;
+        if (search && !p.title.toLowerCase().includes(search)) return false;
+        return true;
+      });
+      renderPapers(filtered);
+    }
+
+    function searchPapers() { applyFilters(); }
+
+    function renderPapers(list) {
+      const start = (page - 1) * pageSize;
+      const pageData = list.slice(start, start + pageSize);
+      document.getElementById('pageInfo').textContent = `第 ${page} 页，共 ${list.length} 条`;
+      document.getElementById('paperList').innerHTML = pageData.map(p => `
+        <tr class="border-b border-gray-800 hover:bg-gray-800/50">
+          <td class="p-3"><input type="checkbox" onchange="toggleSelect(${p.id})" ${selectedIds.has(p.id) ? 'checked' : ''}></td>
+          <td class="p-3">${p.title}</td>
+          <td class="p-3 text-center">${GRADE_NAMES[p.grade_id] || '-'}</td>
+          <td class="p-3 text-center">${SUBJECT_NAMES[p.subject_id] || '-'}</td>
+          <td class="p-3 text-center">${TYPE_NAMES[p.type_id] || '-'}</td>
+          <td class="p-3 text-center text-gray-400">${p.download_count || 0}</td>
+          <td class="p-3 text-center">
+            <button onclick="downloadPaper(${p.id})" class="text-cyan-400 hover:text-cyan-300 mr-2">下载</button>
+            <button onclick="deletePaper(${p.id})" class="text-red-400 hover:text-red-300">删除</button>
           </td>
         </tr>
       `).join('');
     }
-    
-    // 渲染下拉选择
-    function renderSelect(value, choices, field, index) {
-      if (!choices || choices.length === 0) {
-        return `<input type="text" value="${value || ''}" class="w-20 px-2 py-1 bg-white/5 border border-white/10 rounded text-sm"
-          onchange="updateField(${index}, '${field}', this.value)">`;
-      }
-      
-      return `
-        <select onchange="updateField(${index}, '${field}', this.value)" 
-          class="w-20 px-2 py-1 bg-white/5 border border-white/10 rounded text-sm">
-          <option value="">--</option>
-          ${choices.map(c => `<option value="${c}" ${c === value ? 'selected' : ''}>${c}</option>`).join('')}
-        </select>
-      `;
+
+    function toggleSelectAll() {
+      const checked = document.getElementById('selectAll').checked;
+      papers.forEach(p => { if (checked) selectedIds.add(p.id); else selectedIds.delete(p.id); });
+      document.querySelectorAll('#paperList input[type="checkbox"]').forEach(cb => cb.checked = checked);
     }
-    
-    // 获取状态文字
-    function getStatusText(status) {
-      const map = { pending: '待处理', processing: '识别中', done: '已完成', error: '失败' };
-      return map[status] || status;
+
+    function toggleSelect(id) { if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); }
+    function prevPage() { if (page > 1) { page--; applyFilters(); } }
+    function nextPage() { page++; applyFilters(); }
+
+    function downloadPaper(id) { window.open('/sjxz/api/papers/' + id + '/download', '_blank'); }
+
+    async function deletePaper(id) {
+      selectedIds.clear();
+      selectedIds.add(id);
+      showBatchDeleteModal();
     }
-    
-    // 识别单个文件
-    async function recognizeFile(id) {
+
+    function showBatchDeleteModal() {
+      if (selectedIds.size === 0) { alert('请先选择要删除的试卷'); return; }
+      document.getElementById('deleteCount').textContent = selectedIds.size;
+      document.getElementById('deleteModal').classList.remove('hidden');
+      document.getElementById('deleteModal').classList.add('flex');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('deleteModal').classList.add('hidden');
+      document.getElementById('deleteModal').classList.remove('flex');
+      document.getElementById('deletePassword').value = '';
+    }
+
+    async function confirmBatchDelete() {
+      const password = document.getElementById('deletePassword').value;
+      if (!password) { alert('请输入密码'); return; }
       try {
-        const res = await authFetch(`/api/recognize/${id}`, { method: 'POST' });
-        const data = await res.json();
-        
-        if (data.success) {
-          const idx = files.findIndex(f => f.id === id);
-          if (idx !== -1) {
-            files[idx] = data.file;
-            renderFileList();
-          }
-        } else {
-          alert('识别失败: ' + data.error);
-        }
-      } catch (error) {
-        alert('识别失败: ' + error.message);
-      }
-    }
-    
-    // 批量识别
-    async function recognizeAll() {
-      const pendingFiles = files.filter(f => f.status !== 'done');
-      if (pendingFiles.length === 0) {
-        alert('没有需要识别的文件');
-        return;
-      }
-      
-      const ids = pendingFiles.map(f => f.id);
-      
-      try {
-        const res = await authFetch('/api/recognize-all', {
+        const res = await fetch('/sjxz/api/admin/papers/batch/delete', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ids })
+          body: JSON.stringify({ ids: Array.from(selectedIds), password })
         });
         const data = await res.json();
-        
         if (data.success) {
-          data.results.forEach(r => {
-            if (r.success) {
-              const idx = files.findIndex(f => f.id === r.id);
-              if (idx !== -1) files[idx] = r.file;
-            }
-          });
-          renderFileList();
-        }
-      } catch (error) {
-        alert('批量识别失败: ' + error.message);
-      }
+          alert(`成功删除 ${data.deletedCount} 个试卷`);
+          selectedIds.clear();
+          closeDeleteModal();
+          loadPapers();
+        } else { alert('删除失败: ' + data.error); }
+      } catch (e) { alert('删除失败: ' + e.message); }
     }
-    
-    // 更新字段
-    async function updateField(index, field, value) {
-      files[index].extractedInfo = files[index].extractedInfo || {};
-      files[index].extractedInfo[field] = value;
-      
-      try {
-        await authFetch(`/api/files/${files[index].id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ [field]: value })
-        });
-      } catch (e) {
-        console.error('更新失败', e);
-      }
+
+    async function logout() {
+      await fetch('/up/api/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+      localStorage.removeItem('up_token');
+      window.location.href = '/up/login.html';
     }
-    
-    // 删除文件
-    async function deleteFile(id) {
-      if (!confirm('确定删除这个文件？')) return;
-      
-      try {
-        await authFetch(`/api/files/${id}`, { method: 'DELETE' });
-        files = files.filter(f => f.id !== id);
-        renderFileList();
-      } catch (error) {
-        alert('删除失败: ' + error.message);
-      }
-    }
-    
-    // 编辑文件
-    function editFile(index) {
-      const file = files[index];
-      alert('编辑功能开发中...\n当前识别结果:\n' + JSON.stringify(file.extractedInfo, null, 2));
-    }
-    
-    // 提交全部
-    async function submitAll() {
-      const doneFiles = files.filter(f => f.status === 'done');
-      if (doneFiles.length === 0) {
-        alert('没有已识别的文件');
-        return;
-      }
-      
-      if (!confirm(`确定提交 ${doneFiles.length} 个文件到试卷库？`)) return;
-      
-      try {
-        const res = await authFetch('/api/submit', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files: doneFiles.map(f => f.id) })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-          alert('提交成功！');
-        } else {
-          alert('提交失败: ' + data.error);
-        }
-      } catch (error) {
-        alert('提交失败: ' + error.message);
-      }
-    }
-    
-    // Tab切换
-    function showTab(tab) {
-      ['upload', 'history', 'settings'].forEach(t => {
-        document.getElementById(`panel-${t}`).classList.add('hidden');
-        document.getElementById(`tab-${t}`).classList.remove('tab-active');
-        document.getElementById(`tab-${t}`).classList.add('text-gray-400');
-      });
-      
-      document.getElementById(`panel-${tab}`).classList.remove('hidden');
-      document.getElementById(`tab-${tab}`).classList.add('tab-active');
-      document.getElementById(`tab-${tab}`).classList.remove('text-gray-400');
+
+    function authFetch(url, opt = {}) {
+      opt.headers = opt.headers || {};
+      opt.headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, opt);
     }
   </script>
 </body>

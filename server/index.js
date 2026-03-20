@@ -4,10 +4,10 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const FormData = require('form-data');
 require('dotenv').config();
 
 const { v4: uuidv4 } = require('uuid');
-const { recognizeImage, extractPaperInfo } = require('./ocr');
 
 const app = express();
 const PORT = 3003;
@@ -16,7 +16,7 @@ const PORT = 3003;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
 
-// 会话存储（生产环境应使用Redis等）
+// 会话存储
 const sessions = new Map();
 
 // 中间件
@@ -24,7 +24,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// 登录页面路由
+// 登录页面
 app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/login.html'));
 });
@@ -32,17 +32,14 @@ app.get('/login', (req, res) => {
 // 登录验证中间件
 function requireAuth(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '') || req.query.token;
-  
   if (!token || !sessions.has(token)) {
     return res.status(401).json({ success: false, error: '请先登录' });
   }
-  
   const session = sessions.get(token);
   if (Date.now() > session.expires) {
     sessions.delete(token);
-    return res.status(401).json({ success: false, error: '登录已过期，请重新登录' });
+    return res.status(401).json({ success: false, error: '登录已过期' });
   }
-  
   req.user = session;
   next();
 }
@@ -50,27 +47,13 @@ function requireAuth(req, res, next) {
 // API: 登录
 app.post('/api/login', (req, res) => {
   const { username, password } = req.body;
-  
   if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
     const token = crypto.randomBytes(32).toString('hex');
-    sessions.set(token, {
-      username,
-      expires: Date.now() + 24 * 60 * 60 * 1000 // 24小时过期
-    });
-    
+    sessions.set(token, { username, expires: Date.now() + 24 * 60 * 60 * 1000 });
     res.json({ success: true, token, message: '登录成功' });
   } else {
     res.status(401).json({ success: false, error: '用户名或密码错误' });
   }
-});
-
-// API: 登出
-app.post('/api/logout', (req, res) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (token && sessions.has(token)) {
-    sessions.delete(token);
-  }
-  res.json({ success: true });
 });
 
 // API: 检查登录状态
@@ -78,13 +61,18 @@ app.get('/api/check-auth', requireAuth, (req, res) => {
   res.json({ success: true, user: { username: req.user.username } });
 });
 
+// API: 退出登录
+app.post('/api/logout', requireAuth, (req, res) => {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  sessions.delete(token);
+  res.json({ success: true });
+});
+
 // 文件上传配置
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadDir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
@@ -95,197 +83,111 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-    if (allowedTypes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('不支持的文件类型'));
-    }
+    const allowed = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('不支持的文件类型'));
   }
 });
 
-// 存储识别结果
-const recognitionResults = new Map();
-
-// 以下API都需要登录
 // API: 上传文件
-app.post('/api/upload', requireAuth, upload.array('files', 20), async (req, res) => {
+app.post('/api/upload', requireAuth, upload.array('files', 20), (req, res) => {
   try {
-    const files = req.files;
-    const results = [];
-
-    for (const file of files) {
-      const fileId = uuidv4();
-      const fileInfo = {
-        id: fileId,
-        filename: file.originalname,
-        path: file.path,
-        size: file.size,
-        mimetype: file.mimetype,
-        status: 'pending',
-        recognizedText: '',
-        extractedInfo: null,
-        error: null
-      };
-      recognitionResults.set(fileId, fileInfo);
-      results.push(fileInfo);
-    }
-
+    const results = req.files.map(file => ({
+      id: uuidv4(),
+      filename: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+      path: file.path,
+      size: file.size,
+      mimetype: file.mimetype,
+      newName: '',
+      info: {}
+    }));
     res.json({ success: true, files: results });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// API: OCR识别单个文件
-app.post('/api/recognize/:id', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const fileInfo = recognitionResults.get(id);
+// 解析文件名获取信息
+function parseFilenameInfo(newName) {
+  const parts = newName.split('-');
+  return {
+    grade_id: parts[0] || '',
+    subject_name: parts[4] || '',
+    type_name: parts[6] || ''
+  };
+}
 
-    if (!fileInfo) {
-      return res.status(404).json({ success: false, error: '文件不存在' });
-    }
-
-    fileInfo.status = 'processing';
-
-    const ocrResult = await recognizeImage(fileInfo.path);
-    fileInfo.recognizedText = ocrResult.text;
-
-    const extractedInfo = await extractPaperInfo(ocrResult.text);
-    fileInfo.extractedInfo = extractedInfo;
-    fileInfo.status = 'done';
-
-    res.json({ success: true, file: fileInfo });
-  } catch (error) {
-    const fileInfo = recognitionResults.get(req.params.id);
-    if (fileInfo) {
-      fileInfo.status = 'error';
-      fileInfo.error = error.message;
-    }
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// API: 批量识别
-app.post('/api/recognize-all', requireAuth, async (req, res) => {
-  try {
-    const { ids } = req.body;
-    const results = [];
-
-    for (const id of ids) {
-      const fileInfo = recognitionResults.get(id);
-      if (!fileInfo) continue;
-
-      try {
-        fileInfo.status = 'processing';
-
-        const ocrResult = await recognizeImage(fileInfo.path);
-        fileInfo.recognizedText = ocrResult.text;
-
-        const extractedInfo = await extractPaperInfo(ocrResult.text);
-        fileInfo.extractedInfo = extractedInfo;
-        fileInfo.status = 'done';
-
-        results.push({ id, success: true, file: fileInfo });
-      } catch (error) {
-        fileInfo.status = 'error';
-        fileInfo.error = error.message;
-        results.push({ id, success: false, error: error.message });
-      }
-    }
-
-    res.json({ success: true, results });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// API: 获取文件列表
-app.get('/api/files', requireAuth, (req, res) => {
-  const files = Array.from(recognitionResults.values());
-  res.json({ success: true, files });
-});
-
-// API: 更新提取信息
-app.put('/api/files/:id', requireAuth, (req, res) => {
-  const { id } = req.params;
-  const fileInfo = recognitionResults.get(id);
-
-  if (!fileInfo) {
-    return res.status(404).json({ success: false, error: '文件不存在' });
-  }
-
-  fileInfo.extractedInfo = { ...fileInfo.extractedInfo, ...req.body };
-  res.json({ success: true, file: fileInfo });
-});
-
-// API: 删除文件
-app.delete('/api/files/:id', requireAuth, (req, res) => {
-  const { id } = req.params;
-  const fileInfo = recognitionResults.get(id);
-
-  if (!fileInfo) {
-    return res.status(404).json({ success: false, error: '文件不存在' });
-  }
-
-  if (fs.existsSync(fileInfo.path)) {
-    fs.unlinkSync(fileInfo.path);
-  }
-
-  recognitionResults.delete(id);
-  res.json({ success: true });
-});
+// 科目和类型映射
+const subjectMap = { '语文': 1, '数学': 2, '英语': 3, '物理': 4, '化学': 5 };
+const typeMap = { '月考': 1, '期中': 2, '期末': 3, '一模': 4, '二模': 5, '开学考试': 6, '单元测试': 7 };
 
 // API: 提交到试卷库
 app.post('/api/submit', requireAuth, async (req, res) => {
   try {
-    const { files } = req.body;
-    res.json({ success: true, message: '提交成功', count: files.length });
+    const { files: fileList } = req.body;
+    const http = require('http');
+    const FormData = require('form-data');
+    const fs = require('fs');
+    
+    let successCount = 0;
+    
+    for (const file of fileList) {
+      // 解析文件名获取信息
+      const info = parseFilenameInfo(file.newName);
+      const subjectId = subjectMap[info.subject_name] || 2;
+      const typeId = typeMap[info.type_name] || 1;
+      
+      // 创建form-data
+      const form = new FormData();
+      form.append('title', file.newName);
+      form.append('grade_id', info.grade_id);
+      form.append('subject_id', subjectId);
+      form.append('type_id', typeId);
+      form.append('region_id', '长沙');
+      form.append('price', 0);
+      form.append('page_count', 1);
+      form.append('preview_pages', 3);
+      form.append('file', fs.createReadStream(file.path), {
+        filename: file.newName + path.extname(file.filename),
+        contentType: file.mimetype
+      });
+      
+      // 调用试卷库API
+      await new Promise((resolve, reject) => {
+        const request = http.request({
+          hostname: 'localhost',
+          port: 3005,
+          path: '/api/admin/papers',
+          method: 'POST',
+          headers: form.getHeaders()
+        }, (response) => {
+          let data = '';
+          response.on('data', chunk => data += chunk);
+          response.on('end', () => {
+            try {
+              const result = JSON.parse(data);
+              if (result.success || result.id) {
+                successCount++;
+                // 删除临时文件
+                try { fs.unlinkSync(file.path); } catch(e) {}
+              }
+              resolve();
+            } catch(e) { resolve(); }
+          });
+        });
+        request.on('error', reject);
+        form.pipe(request);
+      });
+    }
+    
+    res.json({ success: true, count: successCount });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// API: 获取筛选选项
-app.get('/api/options', requireAuth, async (req, res) => {
-  try {
-    const response = await fetch('http://localhost:3002/api/grades');
-    const grades = await response.json();
-
-    const subjectsRes = await fetch('http://localhost:3002/api/subjects');
-    const subjects = await subjectsRes.json();
-
-    const typesRes = await fetch('http://localhost:3002/api/types');
-    const types = await typesRes.json();
-
-    const regionsRes = await fetch('http://localhost:3002/api/regions');
-    const regions = await regionsRes.json();
-
-    res.json({
-      success: true,
-      options: {
-        grades: grades.data || [],
-        subjects: subjects.data || [],
-        types: types.data || [],
-        regions: regions.data || []
-      }
-    });
-  } catch (error) {
-    res.json({
-      success: true,
-      options: {
-        grades: ['初一', '初二', '初三', '高一', '高二', '高三'],
-        subjects: ['语文', '数学', '英语', '物理', '化学', '生物', '政治', '历史', '地理'],
-        types: ['月考', '期中', '期末', '单元测试', '模拟考试'],
-        regions: ['长沙', '株洲', '湘潭', '衡阳', '邵阳', '岳阳', '常德', '张家界']
-      }
-    });
-  }
-});
-
 app.listen(PORT, () => {
-  console.log(`资料上传系统运行在 http://localhost:${PORT}`);
+  console.log(`Up系统服务运行在端口 ${PORT}`);
 });
