@@ -1,0 +1,21 @@
+{
+  "name": "up",
+  "version": "1.0.0",
+  "description": "资料上传系统 - OCR识别+AI提取+批量上传",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "nodemon server/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2",
+    "multer": "^1.4.5-lts.1",
+    "tencentcloud-sdk-nodejs-ocr": "^4.0.995",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

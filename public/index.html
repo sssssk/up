@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资料上传系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans SC', sans-serif; }
+    
+    :root {
+      --bg-primary: #0a0a1a;
+      --bg-secondary: #12122a;
+      --accent-cyan: #00d4ff;
+      --accent-purple: #a855f7;
+      --accent-pink: #ec4899;
+    }
+    
+    body {
+      background: var(--bg-primary);
+      min-height: 100vh;
+    }
+    
+    .star-bg {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 0;
+    }
+    
+    .star {
+      position: absolute;
+      background: white;
+      border-radius: 50%;
+      animation: twinkle 3s infinite ease-in-out;
+    }
+    
+    @keyframes twinkle {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+    
+    .content-wrapper {
+      position: relative;
+      z-index: 1;
+    }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .upload-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+    }
+    
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 212, 255, 0.1);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      transition: all 0.3s ease;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px rgba(0, 212, 255, 0.3);
+    }
+    
+    .status-pending { color: #9ca3af; }
+    .status-processing { color: #fbbf24; }
+    .status-done { color: #34d399; }
+    .status-error { color: #f87171; }
+    
+    .tab-active {
+      border-bottom: 2px solid var(--accent-cyan);
+      color: var(--accent-cyan);
+    }
+  </style>
+</head>
+<body class="text-white">
+  <!-- 星空背景 -->
+  <div class="star-bg" id="stars"></div>
+  
+  <div class="content-wrapper container mx-auto px-4 py-8 max-w-7xl">
+    <!-- 顶部导航 -->
+    <div class="flex items-center justify-between mb-8">
+      <div class="flex items-center gap-4">
+        <a href="/" class="text-gray-400 hover:text-white transition">
+          ← 返回首页
+        </a>
+        <h1 class="text-2xl font-bold">
+          <span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+            📦 资料上传系统
+          </span>
+        </h1>
+      </div>
+      <div class="flex gap-4">
+        <button onclick="showTab('upload')" id="tab-upload" class="tab-active px-4 py-2 transition">
+          📤 上传识别
+        </button>
+        <button onclick="showTab('history')" id="tab-history" class="px-4 py-2 text-gray-400 transition">
+          📋 上传记录
+        </button>
+        <button onclick="showTab('settings')" id="tab-settings" class="px-4 py-2 text-gray-400 transition">
+          ⚙️ 系统设置
+        </button>
+      </div>
+    </div>
+    
+    <!-- Tab: 上传识别 -->
+    <div id="panel-upload">
+      <!-- 上传区域 -->
+      <div class="glass-card rounded-xl p-8 mb-6">
+        <div id="upload-zone" class="upload-zone rounded-xl p-12 text-center cursor-pointer">
+          <div class="text-6xl mb-4">📤</div>
+          <p class="text-xl mb-2">拖拽文件到这里，或点击选择</p>
+          <p class="text-gray-400 text-sm">支持批量上传（最多20个文件），支持 JPG、PNG、PDF</p>
+          <input type="file" id="file-input" multiple accept="image/*,.pdf" class="hidden">
+        </div>
+      </div>
+      
+      <!-- 文件列表 -->
+      <div class="glass-card rounded-xl p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold">📊 文件列表</h2>
+          <div class="flex gap-3">
+            <button onclick="recognizeAll()" class="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg hover:opacity-90 transition">
+              🔍 全部识别
+            </button>
+            <button onclick="submitAll()" class="px-4 py-2 btn-primary rounded-lg">
+              📤 批量提交
+            </button>
+          </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+          <table class="w-full">
+            <thead>
+              <tr class="text-left text-gray-400 border-b border-gray-700">
+                <th class="pb-3 pr-4">#</th>
+                <th class="pb-3 pr-4">文件名</th>
+                <th class="pb-3 pr-4">年级</th>
+                <th class="pb-3 pr-4">科目</th>
+                <th class="pb-3 pr-4">类型</th>
+                <th class="pb-3 pr-4">地区</th>
+                <th class="pb-3 pr-4">学校</th>
+                <th class="pb-3 pr-4">识别结果</th>
+                <th class="pb-3 pr-4">状态</th>
+                <th class="pb-3">操作</th>
+              </tr>
+            </thead>
+            <tbody id="file-list">
+              <tr>
+                <td colspan="10" class="py-8 text-center text-gray-500">
+                  请先上传文件
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Tab: 上传记录 -->
+    <div id="panel-history" class="hidden">
+      <div class="glass-card rounded-xl p-6">
+        <h2 class="text-xl font-semibold mb-4">📋 上传记录</h2>
+        <p class="text-gray-400">暂无记录</p>
+      </div>
+    </div>
+    
+    <!-- Tab: 系统设置 -->
+    <div id="panel-settings" class="hidden">
+      <div class="glass-card rounded-xl p-6">
+        <h2 class="text-xl font-semibold mb-4">⚙️ 系统设置</h2>
+        
+        <div class="space-y-4 max-w-xl">
+          <div>
+            <label class="block text-gray-400 mb-2">试卷库API地址</label>
+            <input type="text" value="http://159.75.5.234:3002" class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg" readonly>
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-2">管理账号</label>
+            <input type="text" value="admin" class="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-lg">
+          </div>
+          <div>
+            <label class="block text-gray-400 mb-2">腾讯云OCR</label>
+            <span class="text-green-400">✓ 已配置</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    // 全局状态
+    let files = [];
+    let options = { grades: [], subjects: [], types: [], regions: [] };
+    
+    // 初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      createStars();
+      initUpload();
+      loadOptions();
+    });
+    
+    // 创建星空背景
+    function createStars() {
+      const container = document.getElementById('stars');
+      for (let i = 0; i < 150; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = Math.random() * 100 + '%';
+        star.style.top = Math.random() * 100 + '%';
+        star.style.width = Math.random() * 2 + 1 + 'px';
+        star.style.height = star.style.width;
+        star.style.animationDelay = Math.random() * 3 + 's';
+        star.style.animationDuration = (Math.random() * 2 + 2) + 's';
+        container.appendChild(star);
+      }
+    }
+    
+    // 初始化上传
+    function initUpload() {
+      const zone = document.getElementById('upload-zone');
+      const input = document.getElementById('file-input');
+      
+      zone.addEventListener('click', () => input.click());
+      
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('dragover');
+      });
+      
+      zone.addEventListener('dragleave', () => {
+        zone.classList.remove('dragover');
+      });
+      
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        handleFiles(e.dataTransfer.files);
+      });
+      
+      input.addEventListener('change', (e) => {
+        handleFiles(e.target.files);
+      });
+    }
+    
+    // 处理文件上传
+    async function handleFiles(fileList) {
+      const formData = new FormData();
+      for (const file of fileList) {
+        formData.append('files', file);
+      }
+      
+      try {
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          files = [...files, ...data.files];
+          renderFileList();
+        } else {
+          alert('上传失败: ' + data.error);
+        }
+      } catch (error) {
+        alert('上传失败: ' + error.message);
+      }
+    }
+    
+    // 加载选项
+    async function loadOptions() {
+      try {
+        const res = await fetch('/api/options');
+        const data = await res.json();
+        if (data.success) {
+          options = data.options;
+        }
+      } catch (e) {
+        console.error('加载选项失败', e);
+      }
+    }
+    
+    // 渲染文件列表
+    function renderFileList() {
+      const tbody = document.getElementById('file-list');
+      
+      if (files.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="py-8 text-center text-gray-500">请先上传文件</td></tr>';
+        return;
+      }
+      
+      tbody.innerHTML = files.map((file, index) => `
+        <tr class="border-b border-gray-800 hover:bg-white/5">
+          <td class="py-3 pr-4">${index + 1}</td>
+          <td class="py-3 pr-4">
+            <div class="flex items-center gap-2">
+              <span>${file.extractedInfo?.generatedName || file.filename}</span>
+              <button onclick="editFile(${index})" class="text-gray-400 hover:text-white">✏️</button>
+            </div>
+          </td>
+          <td class="py-3 pr-4">
+            ${renderSelect(file.extractedInfo?.grade, options.grades, 'grade', index)}
+          </td>
+          <td class="py-3 pr-4">
+            ${renderSelect(file.extractedInfo?.subject, options.subjects, 'subject', index)}
+          </td>
+          <td class="py-3 pr-4">
+            ${renderSelect(file.extractedInfo?.type, options.types, 'type', index)}
+          </td>
+          <td class="py-3 pr-4">
+            ${renderSelect(file.extractedInfo?.region, options.regions, 'region', index)}
+          </td>
+          <td class="py-3 pr-4">
+            <input type="text" value="${file.extractedInfo?.school || ''}" 
+              class="w-24 px-2 py-1 bg-white/5 border border-white/10 rounded text-sm"
+              onchange="updateField(${index}, 'school', this.value)" placeholder="学校">
+          </td>
+          <td class="py-3 pr-4">
+            <button onclick="recognizeFile('${file.id}')" class="text-cyan-400 hover:text-cyan-300">
+              ${file.status === 'done' ? '✅ 已识别' : file.status === 'processing' ? '⏳ 识别中...' : '🔍 识别'}
+            </button>
+          </td>
+          <td class="py-3 pr-4">
+            <span class="status-${file.status}">${getStatusText(file.status)}</span>
+          </td>
+          <td class="py-3">
+            <button onclick="deleteFile('${file.id}')" class="text-red-400 hover:text-red-300">🗑️</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+    
+    // 渲染下拉选择
+    function renderSelect(value, choices, field, index) {
+      if (!choices || choices.length === 0) {
+        return `<input type="text" value="${value || ''}" class="w-20 px-2 py-1 bg-white/5 border border-white/10 rounded text-sm"
+          onchange="updateField(${index}, '${field}', this.value)">`;
+      }
+      
+      return `
+        <select onchange="updateField(${index}, '${field}', this.value)" 
+          class="w-20 px-2 py-1 bg-white/5 border border-white/10 rounded text-sm">
+          <option value="">--</option>
+          ${choices.map(c => `<option value="${c}" ${c === value ? 'selected' : ''}>${c}</option>`).join('')}
+        </select>
+      `;
+    }
+    
+    // 获取状态文字
+    function getStatusText(status) {
+      const map = { pending: '待处理', processing: '识别中', done: '已完成', error: '失败' };
+      return map[status] || status;
+    }
+    
+    // 识别单个文件
+    async function recognizeFile(id) {
+      try {
+        const res = await fetch(`/api/recognize/${id}`, { method: 'POST' });
+        const data = await res.json();
+        
+        if (data.success) {
+          const idx = files.findIndex(f => f.id === id);
+          if (idx !== -1) {
+            files[idx] = data.file;
+            renderFileList();
+          }
+        } else {
+          alert('识别失败: ' + data.error);
+        }
+      } catch (error) {
+        alert('识别失败: ' + error.message);
+      }
+    }
+    
+    // 批量识别
+    async function recognizeAll() {
+      const pendingFiles = files.filter(f => f.status !== 'done');
+      if (pendingFiles.length === 0) {
+        alert('没有需要识别的文件');
+        return;
+      }
+      
+      const ids = pendingFiles.map(f => f.id);
+      
+      try {
+        const res = await fetch('/api/recognize-all', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          data.results.forEach(r => {
+            if (r.success) {
+              const idx = files.findIndex(f => f.id === r.id);
+              if (idx !== -1) files[idx] = r.file;
+            }
+          });
+          renderFileList();
+        }
+      } catch (error) {
+        alert('批量识别失败: ' + error.message);
+      }
+    }
+    
+    // 更新字段
+    async function updateField(index, field, value) {
+      files[index].extractedInfo = files[index].extractedInfo || {};
+      files[index].extractedInfo[field] = value;
+      
+      try {
+        await fetch(`/api/files/${files[index].id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ [field]: value })
+        });
+      } catch (e) {
+        console.error('更新失败', e);
+      }
+    }
+    
+    // 删除文件
+    async function deleteFile(id) {
+      if (!confirm('确定删除这个文件？')) return;
+      
+      try {
+        await fetch(`/api/files/${id}`, { method: 'DELETE' });
+        files = files.filter(f => f.id !== id);
+        renderFileList();
+      } catch (error) {
+        alert('删除失败: ' + error.message);
+      }
+    }
+    
+    // 编辑文件
+    function editFile(index) {
+      const file = files[index];
+      alert('编辑功能开发中...\n当前识别结果:\n' + JSON.stringify(file.extractedInfo, null, 2));
+    }
+    
+    // 提交全部
+    async function submitAll() {
+      const doneFiles = files.filter(f => f.status === 'done');
+      if (doneFiles.length === 0) {
+        alert('没有已识别的文件');
+        return;
+      }
+      
+      if (!confirm(`确定提交 ${doneFiles.length} 个文件到试卷库？`)) return;
+      
+      try {
+        const res = await fetch('/api/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: doneFiles.map(f => f.id) })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+          alert('提交成功！');
+        } else {
+          alert('提交失败: ' + data.error);
+        }
+      } catch (error) {
+        alert('提交失败: ' + error.message);
+      }
+    }
+    
+    // Tab切换
+    function showTab(tab) {
+      ['upload', 'history', 'settings'].forEach(t => {
+        document.getElementById(`panel-${t}`).classList.add('hidden');
+        document.getElementById(`tab-${t}`).classList.remove('tab-active');
+        document.getElementById(`tab-${t}`).classList.add('text-gray-400');
+      });
+      
+      document.getElementById(`panel-${tab}`).classList.remove('hidden');
+      document.getElementById(`tab-${tab}`).classList.add('tab-active');
+      document.getElementById(`tab-${tab}`).classList.remove('text-gray-400');
+    }
+  </script>
+</body>
+</html>
