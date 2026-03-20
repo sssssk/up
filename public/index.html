@@ -214,7 +214,7 @@
     // 学校列表：按长度降序排列，优先匹配最长的
     const SCHOOLS = [
       '师大思沁', '师大附中梅溪湖', '长郡梅溪湖', '雅礼梅溪湖',
-      '雅礼洋湖', '长郡双语', '雅礼实验', '麓山国际',
+      '雅礼洋湖', '长郡集团', '长郡双语', '雅礼实验', '麓山国际',
       '师大附中', '长郡', '雅礼', '青一', '广益', '华益', '长梅', '周南', '明德', '一中', '双语', '博才', '麓山', '培粹'
     ];
 
@@ -281,11 +281,10 @@
       for (const [k, v] of Object.entries(GRADE_IDS)) if (n.includes(k)) { info.grade = v; break; }
       if (n.includes('上')) info.semester = 1; else if (n.includes('下')) info.semester = 2;
       for (const [k, v] of Object.entries(SUBJECT_IDS)) if (n.includes(k)) { info.subject = v; break; }
-      if (n.includes('月考')) info.type = 1;
+      if (n.includes('一模')) info.type = 4;
+      else if (n.includes('月考')) info.type = 1;
       else if (n.includes('期中')) info.type = 2;
       else if (n.includes('期末')) info.type = 3;
-      else if (n.includes('一模')) info.type = 4;
-      else if (n.includes('二模')) info.type = 5;
       else if (n.includes('开学') || n.includes('入学')) info.type = 6;
       else if (n.includes('单元')) info.type = 7;
       for (const s of SCHOOLS) if (n.includes(s)) { info.school = s; break; }

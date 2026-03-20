@@ -147,6 +147,7 @@ app.post('/api/submit', requireAuth, async (req, res) => {
       form.append('type_id', typeId);
       form.append('region_id', '长沙');
       form.append('price', 0);
+      form.append("price_type", "free");
       form.append('page_count', 1);
       form.append('preview_pages', 3);
       form.append('file', fs.createReadStream(file.path), {
