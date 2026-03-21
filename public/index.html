@@ -29,8 +29,9 @@
     <div class="flex items-center justify-between mb-8">
       <h1 class="text-2xl font-bold"><span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">📦 资料上传系统</span></h1>
       <div class="flex items-center gap-4">
+        <button class="nav-tab" onclick="showTab('upload')">📁 资料上传</button>
         <button class="nav-tab" onclick="showTab('manage')">📚 试卷管理</button>
-        <button class="nav-tab" onclick="showTab('manage')">📚 试卷管理</button>
+        <button class="nav-tab" onclick="showTab('changelog')">📝 更新日志</button>
         <span class="text-gray-400" id="userInfo"></span>
         <button onclick="logout()" class="text-gray-400 hover:text-white text-sm">退出</button>
       </div>
