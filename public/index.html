@@ -228,7 +228,17 @@
       '师大附中', '长郡', '雅礼', '青一', '广益', '华益', '长梅', '周南', '明德', '一中', '双语', '博才', '麓山', '培粹'
     ];
 
-    document.addEventListener('DOMContentLoaded', () => { createStars(); const saved = localStorage.getItem('upSection'); if(saved) showSection(saved); else { showSection('upload'); } checkAuth(); });
+    
+    // Tab索引映射
+    const TAB_INDEX = { upload: 0, manage: 1, changelog: 2 };
+    
+    // 页面初始化
+    document.addEventListener('DOMContentLoaded', () => {
+      createStars();
+      const saved = localStorage.getItem('upSection') || 'upload';
+      showSection(saved);
+      checkAuth();
+    });
 
     function createStars() {
       const c = document.getElementById('stars');
@@ -243,16 +253,18 @@
     // Tab切换
     function showSection(name) {
       localStorage.setItem('upSection', name);
+      // 隐藏所有section
       document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
-      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      // 显示当前section
       document.getElementById(name).classList.add('active');
-      // 根据name激活对应按钮
-      const sectionMap = {'upload': 0, 'manage': 1, 'changelog': 2};
-      const buttons = document.querySelectorAll('.nav-tab');
-      if (sectionMap[name] !== undefined && buttons[sectionMap[name]]) {
-        buttons[sectionMap[name]].classList.add('active');
+      // 取消所有按钮激活状态
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      // 激活当前按钮
+      const idx = TAB_INDEX[name];
+      if (idx !== undefined) {
+        document.querySelectorAll('.nav-tab')[idx]?.classList.add('active');
       }
-      
+      // 加载试卷管理数据
       if (name === 'manage') loadPapers();
     }
 
