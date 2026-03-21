@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资料上传系统</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Noto Sans SC', sans-serif; }
+    body { background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 100%); min-height: 100vh; }
+    .star-bg { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+    .star { position: absolute; background: white; border-radius: 50%; animation: twinkle 3s infinite ease-in-out; }
+    @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+    .glass-card { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+    .upload-zone { border: 2px dashed rgba(96, 165, 250, 0.5); transition: all 0.3s; }
+    .upload-zone:hover, .upload-zone.dragover { border-color: #60a5fa; background: rgba(96, 165, 250, 0.1); }
+    select, input { background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); color: #e5e7eb; }
+    select:focus, input:focus { outline: none; border-color: #60a5fa; }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); }
+    .file-card { background: rgba(30, 41, 59, 0.5); border: 1px solid rgba(255,255,255,0.05); }
+  </style>
+</head>
+<body class="text-white">
+  <div class="star-bg" id="stars"></div>
+  
+  <div class="relative z-10 container mx-auto px-4 py-8 max-w-5xl">
+    <div class="flex items-center justify-between mb-8">
+      <h1 class="text-2xl font-bold"><span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">📦 资料上传系统</span></h1>
+      <div class="flex items-center gap-4">
+        <a href="/up/manage.html" class="text-gray-400 hover:text-white text-sm">📚 试卷管理</a>
+        <a href="/up/changelog.html" class="text-gray-400 hover:text-white text-sm">📝 更新日志</a>
+        <span class="text-gray-400" id="userInfo"></span>
+        <button onclick="logout()" class="text-gray-400 hover:text-white text-sm">退出</button>
+      </div>
+    </div>
+
+    <div class="glass-card rounded-xl p-6 mb-6">
+      <div id="upload-zone" class="upload-zone rounded-xl p-12 text-center cursor-pointer">
+        <div class="text-4xl mb-4">📁</div>
+        <p class="text-gray-400 mb-2">点击或拖拽文件到此处上传</p>
+        <p class="text-gray-500 text-sm">支持 PDF、图片格式，最多20个文件</p>
+      </div>
+      <input type="file" id="file-input" multiple accept=".pdf,image/*" class="hidden">
+    </div>
+
+    <div class="glass-card rounded-xl p-6 mb-6" id="file-panel" style="display: none;">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold">待处理文件 (<span id="fileCount">0</span>)</h2>
+        <div class="flex gap-2">
+          <button onclick="submitAll()" class="btn-primary px-6 py-2 rounded-lg text-sm">提交到试卷库</button>
+          <button onclick="clearAll()" class="px-4 py-2 rounded-lg text-sm bg-gray-600 hover:bg-gray-500">清空</button>
+        </div>
+      </div>
+      <div id="file-list" class="space-y-3"></div>
+    </div>
+
+    <div class="glass-card rounded-xl p-6">
+      <h3 class="text-lg font-semibold mb-3">📋 命名规则</h3>
+      <div class="text-gray-400 text-sm">
+        <p>格式：<code class="bg-gray-800 px-2 py-1 rounded">年级-学年起-学年止-学期-科目-学校-考试名</code></p>
+        <p class="mt-2">示例：<code class="bg-gray-800 px-2 py-1 rounded">9-2025-2026-2-数学-长郡九下-一模</code></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let files = [], token = localStorage.getItem('up_token');
+    const GRADE_IDS = { '7': 7, '8': 8, '9': 9, '七': 7, '八': 8, '九': 9, '初一': 7, '初二': 8, '初三': 9 };
+    const SUBJECT_IDS = { '语文': 1, '数学': 2, '英语': 3, '物理': 4, '化学': 5 };
+    const SUBJECT_NAMES = { 1: '语文', 2: '数学', 3: '英语', 4: '物理', 5: '化学' };
+    const TYPE_NAMES = { 1: '月考', 2: '期中', 3: '期末', 4: '一模', 5: '二模', 6: '开学考试', 7: '单元测试' };
+
+    document.addEventListener('DOMContentLoaded', () => { createStars(); checkAuth(); });
+
+    function createStars() {
+      const c = document.getElementById('stars');
+      for (let i = 0; i < 100; i++) {
+        const s = document.createElement('div');
+        s.className = 'star';
+        s.style.cssText = `left:${Math.random()*100}%;top:${Math.random()*100}%;width:${Math.random()*2+1}px;height:${s.style.width};animation-delay:${Math.random()*3}s`;
+        c.appendChild(s);
+      }
+    }
+
+    async function checkAuth() {
+      if (!token) { window.location.href = '/up/login.html'; return; }
+      try {
+        const res = await fetch('/up/api/check-auth', { headers: { 'Authorization': `Bearer ${token}` } });
+        const data = await res.json();
+        if (!data.success) { localStorage.removeItem('up_token'); window.location.href = '/up/login.html'; return; }
+        document.getElementById('userInfo').textContent = `👤 ${data.user.username}`;
+        initUpload();
+      } catch (e) { localStorage.removeItem('up_token'); window.location.href = '/up/login.html'; }
+    }
+
+    function initUpload() {
+      const zone = document.getElementById('upload-zone'), input = document.getElementById('file-input');
+      zone.onclick = () => input.click();
+      zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragover'); };
+      zone.ondragleave = () => zone.classList.remove('dragover');
+      zone.ondrop = e => { e.preventDefault(); zone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); };
+      input.onchange = e => handleFiles(e.target.files);
+    }
+
+    async function handleFiles(fl) {
+      const fd = new FormData();
+      for (const f of fl) fd.append('files', f);
+      try {
+        const res = await authFetch('/up/api/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.success) {
+          data.files.forEach(f => { f.info = parseFilename(f.filename); f.newName = generateName(f.info); });
+          files = [...files, ...data.files];
+          renderFileList();
+        } else alert('上传失败: ' + data.error);
+      } catch (e) { alert('上传失败: ' + e.message); }
+    }
+
+    function parseFilename(name) {
+      const info = { grade: '', yearStart: '', yearEnd: '', semester: '', school: '', type: '', subject: '' };
+      const n = name.replace(/\.[^.]+$/, '');
+      const ym = n.match(/(20\d{2})[-_年]?(20\d{2})/);
+      if (ym) { info.yearStart = ym[1]; info.yearEnd = ym[2]; }
+      for (const [k, v] of Object.entries(GRADE_IDS)) if (n.includes(k)) { info.grade = v; break; }
+      if (n.includes('上')) info.semester = 1; else if (n.includes('下')) info.semester = 2;
+      for (const [k, v] of Object.entries(SUBJECT_IDS)) if (n.includes(k)) { info.subject = v; break; }
+      if (n.includes('月考')) info.type = 1; else if (n.includes('期中')) info.type = 2; else if (n.includes('期末')) info.type = 3; else if (n.includes('一模')) info.type = 4; else if (n.includes('二模')) info.type = 5; else if (n.includes('开学') || n.includes('入学')) info.type = 6; else if (n.includes('单元')) info.type = 7;
+      const schools = ['长郡', '雅礼', '师大附中', '青一', '广益', '华益', '长梅', '周南', '明德', '一中', '双语', '博才', '麓山', '培粹'];
+      for (const s of schools) if (n.includes(s)) { info.school = s; break; }
+      return info;
+    }
+
+    function generateName(info) {
+      if (!info.grade) return '';
+      // 格式：年级-学年起-学年止-学期-科目-学校-考试名
+      const parts = [info.grade, info.yearStart || new Date().getFullYear(), info.yearEnd || new Date().getFullYear() + 1];
+      if (info.semester) parts.push(info.semester);
+      if (info.subject) parts.push(SUBJECT_NAMES[info.subject]);
+      if (info.school) parts.push(info.school);
+      if (info.type) parts.push(TYPE_NAMES[info.type]);
+      return parts.join('-');
+    }
+
+    function renderFileList() {
+      const panel = document.getElementById('file-panel');
+      if (files.length === 0) { panel.style.display = 'none'; return; }
+      panel.style.display = 'block';
+      document.getElementById('fileCount').textContent = files.length;
+      
+      document.getElementById('file-list').innerHTML = files.map((f, i) => `
+        <div class="file-card rounded-lg p-4">
+          <div class="text-gray-400 text-sm mb-2 truncate">📄 ${f.filename}</div>
+          <div class="text-cyan-400 font-medium mb-3">${f.newName || '(请填写信息生成文件名)'}</div>
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <select onchange="updateField(${i},'grade',this.value)" class="px-2 py-1 rounded">
+              <option value="">年级</option>
+              <option value="7" ${f.info.grade==7?'selected':''}>初一</option>
+              <option value="8" ${f.info.grade==8?'selected':''}>初二</option>
+              <option value="9" ${f.info.grade==9?'selected':''}>初三</option>
+            </select>
+            <input type="text" value="${f.info.yearStart}" onchange="updateField(${i},'yearStart',this.value)" class="w-16 px-2 py-1 rounded text-center" placeholder="年起">
+            <span class="text-gray-500">-</span>
+            <input type="text" value="${f.info.yearEnd}" onchange="updateField(${i},'yearEnd',this.value)" class="w-16 px-2 py-1 rounded text-center" placeholder="年止">
+            <select onchange="updateField(${i},'semester',this.value)" class="px-2 py-1 rounded">
+              <option value="">学期</option>
+              <option value="1" ${f.info.semester==1?'selected':''}>1</option>
+              <option value="2" ${f.info.semester==2?'selected':''}>2</option>
+            </select>
+            <select onchange="updateField(${i},'subject',this.value)" class="px-2 py-1 rounded">
+              <option value="">科目</option>
+              <option value="1" ${f.info.subject==1?'selected':''}>语文</option>
+              <option value="2" ${f.info.subject==2?'selected':''}>数学</option>
+              <option value="3" ${f.info.subject==3?'selected':''}>英语</option>
+              <option value="4" ${f.info.subject==4?'selected':''}>物理</option>
+              <option value="5" ${f.info.subject==5?'selected':''}>化学</option>
+            </select>
+            <input type="text" value="${f.info.school}" onchange="updateField(${i},'school',this.value)" class="w-24 px-2 py-1 rounded" placeholder="学校">
+            <select onchange="updateField(${i},'type',this.value)" class="px-2 py-1 rounded">
+              <option value="">类型</option>
+              <option value="1" ${f.info.type==1?'selected':''}>月考</option>
+              <option value="2" ${f.info.type==2?'selected':''}>期中</option>
+              <option value="3" ${f.info.type==3?'selected':''}>期末</option>
+              <option value="4" ${f.info.type==4?'selected':''}>一模</option>
+              <option value="5" ${f.info.type==5?'selected':''}>二模</option>
+              <option value="6" ${f.info.type==6?'selected':''}>开学</option>
+              <option value="7" ${f.info.type==7?'selected':''}>单元</option>
+            </select>
+            <button onclick="removeFile(${i})" class="ml-auto text-red-400 hover:text-red-300 px-2 py-1">删除</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function updateField(i, field, val) {
+      files[i].info[field] = val;
+      files[i].newName = generateName(files[i].info);
+      renderFileList();
+    }
+
+    function removeFile(i) { files.splice(i, 1); renderFileList(); }
+    function clearAll() { files = []; renderFileList(); }
+
+    async function submitAll() {
+      const valid = files.filter(f => f.newName);
+      if (!valid.length) { alert('请先生成文件名'); return; }
+      try {
+        const res = await authFetch('/up/api/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: valid }) });
+        const data = await res.json();
+        if (data.success) { alert(`成功提交 ${data.count} 个文件`); files = []; renderFileList(); }
+        else alert('提交失败: ' + data.error);
+      } catch (e) { alert('提交失败: ' + e.message); }
+    }
+
+    async function logout() {
+      await fetch('/up/api/logout', { method: 'POST', headers: { 'Authorization': `Bearer ${token}` }});
+      localStorage.removeItem('up_token');
+      window.location.href = '/up/login.html';
+    }
+
+    function authFetch(url, opt = {}) {
+      opt.headers = opt.headers || {};
+      opt.headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, opt);
+    }
+  </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const FormData = require('form-data');
 const archiver = require('archiver');
+const mysql = require('mysql2/promise');
 require('dotenv').config();
 
 const { v4: uuidv4 } = require('uuid');
@@ -13,12 +14,24 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = 3003;
 
-// 管理员账号配置
-const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
-
 // 会话存储
 const sessions = new Map();
+
+// MySQL 连接池
+let pool;
+
+async function initDB() {
+  pool = mysql.createPool({
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'education_db',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+  });
+  console.log('MySQL 连接池已创建');
+}
 
 // 中间件
 app.use(cors());
@@ -45,15 +58,19 @@ function requireAuth(req, res, next) {
   next();
 }
 
-// API: 登录
-app.post('/api/login', (req, res) => {
-  const { username, password } = req.body;
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+// API: 登录（从 MySQL 验证）
+app.post('/api/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const [[admin]] = await pool.execute('SELECT * FROM admins WHERE username = ?', [username]);
+    if (!admin || admin.password !== password) {
+      return res.status(401).json({ success: false, error: '用户名或密码错误' });
+    }
     const token = crypto.randomBytes(32).toString('hex');
     sessions.set(token, { username, expires: Date.now() + 24 * 60 * 60 * 1000 });
     res.json({ success: true, token, message: '登录成功' });
-  } else {
-    res.status(401).json({ success: false, error: '用户名或密码错误' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 
@@ -97,7 +114,7 @@ function compressToZip(filePath, originalName) {
   return new Promise((resolve, reject) => {
     const zipPath = filePath.replace(path.extname(filePath), '.zip');
     const output = fs.createWriteStream(zipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } }); // 最大压缩率
+    const archive = archiver('zip', { zlib: { level: 9 } });
     
     output.on('close', () => resolve(zipPath));
     archive.on('error', reject);
@@ -115,11 +132,7 @@ app.post('/api/upload', requireAuth, upload.array('files', 20), async (req, res)
     
     for (const file of req.files) {
       const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
-      
-      // 将文件压缩成 zip
       const zipPath = await compressToZip(file.path, originalName);
-      
-      // 删除原始文件，只保留 zip
       try { fs.unlinkSync(file.path); } catch(e) {}
       
       results.push({
@@ -149,7 +162,6 @@ function parseFilenameInfo(newName) {
   };
 }
 
-// 科目和类型映射
 const subjectMap = { '语文': 1, '数学': 2, '英语': 3, '物理': 4, '化学': 5 };
 const typeMap = { '月考': 1, '期中': 2, '期末': 3, '一模': 4, '二模': 5, '开学考试': 6, '单元测试': 7 };
 
@@ -164,31 +176,27 @@ app.post('/api/submit', requireAuth, async (req, res) => {
     let successCount = 0;
     
     for (const file of fileList) {
-      // 解析文件名获取信息
       const info = parseFilenameInfo(file.newName);
       const subjectId = subjectMap[info.subject_name] || 2;
       const typeId = typeMap[info.type_name] || 1;
       
-      // 创建form-data，提交 zip 文件
       const form = new FormData();
       form.append('title', file.newName);
       form.append('grade_id', info.grade_id);
       form.append('subject_id', subjectId);
       form.append('type_id', typeId);
-      form.append('region_id', '长沙');
+      form.append('region_id', 1); // 1=全国通用
       form.append('price', 0);
       form.append('price_type', 'free');
       form.append('page_count', 1);
       form.append('preview_pages', 3);
       
-      // 读取 zip 文件并发送
       const zipFilename = path.basename(file.path);
       form.append('file', fs.createReadStream(file.path), {
         filename: zipFilename,
         contentType: 'application/zip'
       });
       
-      // 调用试卷库API
       await new Promise((resolve, reject) => {
         const request = http.request({
           hostname: 'localhost',
@@ -204,7 +212,6 @@ app.post('/api/submit', requireAuth, async (req, res) => {
               const result = JSON.parse(data);
               if (result.success || result.id) {
                 successCount++;
-                // 删除临时 zip 文件
                 try { fs.unlinkSync(file.path); } catch(e) {}
               }
               resolve();
@@ -225,3 +232,5 @@ app.post('/api/submit', requireAuth, async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Up系统服务运行在端口 ${PORT}`);
 });
+
+initDB();
