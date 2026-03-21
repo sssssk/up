@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const FormData = require('form-data');
+const archiver = require('archiver');
 require('dotenv').config();
 
 const { v4: uuidv4 } = require('uuid');
@@ -91,18 +92,47 @@ const upload = multer({
   }
 });
 
-// API: 上传文件
-app.post('/api/upload', requireAuth, upload.array('files', 20), (req, res) => {
+// 将文件压缩成 zip（最大压缩率）
+function compressToZip(filePath, originalName) {
+  return new Promise((resolve, reject) => {
+    const zipPath = filePath.replace(path.extname(filePath), '.zip');
+    const output = fs.createWriteStream(zipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } }); // 最大压缩率
+    
+    output.on('close', () => resolve(zipPath));
+    archive.on('error', reject);
+    
+    archive.pipe(output);
+    archive.file(filePath, { name: originalName });
+    archive.finalize();
+  });
+}
+
+// API: 上传文件（自动压缩成 zip）
+app.post('/api/upload', requireAuth, upload.array('files', 20), async (req, res) => {
   try {
-    const results = req.files.map(file => ({
-      id: uuidv4(),
-      filename: Buffer.from(file.originalname, 'latin1').toString('utf8'),
-      path: file.path,
-      size: file.size,
-      mimetype: file.mimetype,
-      newName: '',
-      info: {}
-    }));
+    const results = [];
+    
+    for (const file of req.files) {
+      const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+      
+      // 将文件压缩成 zip
+      const zipPath = await compressToZip(file.path, originalName);
+      
+      // 删除原始文件，只保留 zip
+      try { fs.unlinkSync(file.path); } catch(e) {}
+      
+      results.push({
+        id: uuidv4(),
+        filename: originalName,
+        path: zipPath,
+        size: fs.statSync(zipPath).size,
+        mimetype: 'application/zip',
+        newName: '',
+        info: {}
+      });
+    }
+    
     res.json({ success: true, files: results });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -139,7 +169,7 @@ app.post('/api/submit', requireAuth, async (req, res) => {
       const subjectId = subjectMap[info.subject_name] || 2;
       const typeId = typeMap[info.type_name] || 1;
       
-      // 创建form-data
+      // 创建form-data，提交 zip 文件
       const form = new FormData();
       form.append('title', file.newName);
       form.append('grade_id', info.grade_id);
@@ -147,12 +177,15 @@ app.post('/api/submit', requireAuth, async (req, res) => {
       form.append('type_id', typeId);
       form.append('region_id', '长沙');
       form.append('price', 0);
-      form.append("price_type", "free");
+      form.append('price_type', 'free');
       form.append('page_count', 1);
       form.append('preview_pages', 3);
+      
+      // 读取 zip 文件并发送
+      const zipFilename = path.basename(file.path);
       form.append('file', fs.createReadStream(file.path), {
-        filename: file.newName + path.extname(file.filename),
-        contentType: file.mimetype
+        filename: zipFilename,
+        contentType: 'application/zip'
       });
       
       // 调用试卷库API
@@ -171,7 +204,7 @@ app.post('/api/submit', requireAuth, async (req, res) => {
               const result = JSON.parse(data);
               if (result.success || result.id) {
                 successCount++;
-                // 删除临时文件
+                // 删除临时 zip 文件
                 try { fs.unlinkSync(file.path); } catch(e) {}
               }
               resolve();
