@@ -29,13 +29,14 @@
     <div class="flex items-center justify-between mb-8">
       <h1 class="text-2xl font-bold"><span class="bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">📦 资料上传系统</span></h1>
       <div class="flex items-center gap-4">
-        <a href="/up/manage.html" class="text-gray-400 hover:text-white text-sm">📚 试卷管理</a>
-        <button class="nav-tab" onclick="showTab('changelog')">📝 更新日志</button>
+        <button class="nav-tab" onclick="showTab('manage')">📚 试卷管理</button>
+        <button class="nav-tab" onclick="showTab('manage')">📚 试卷管理</button>
         <span class="text-gray-400" id="userInfo"></span>
         <button onclick="logout()" class="text-gray-400 hover:text-white text-sm">退出</button>
       </div>
     </div>
 
+    <div id="upload" class="section">
     <div class="glass-card rounded-xl p-6 mb-6">
       <div id="upload-zone" class="upload-zone rounded-xl p-12 text-center cursor-pointer">
         <div class="text-4xl mb-4">📁</div>
@@ -65,6 +66,75 @@
     </div>
   </div>
 
+
+
+  <!-- 试卷管理Tab -->
+  <div id="manage" class="section" style="display:none;">
+    <div class="glass-card rounded-xl p-6">
+      <div class="flex items-center gap-4 mb-4 flex-wrap">
+        <input type="text" id="searchInput" placeholder="搜索试卷名称..." class="flex-1 min-w-48 px-4 py-2 rounded-lg bg-gray-800 border border-gray-600 focus:border-cyan-400 focus:outline-none">
+        <select id="filterGrade" onchange="loadPapers()" class="px-4 py-2 rounded-lg">
+          <option value="">全部年级</option>
+          <option value="7">初一</option>
+          <option value="8">初二</option>
+          <option value="9">初三</option>
+        </select>
+        <select id="filterSubject" onchange="loadPapers()" class="px-4 py-2 rounded-lg">
+          <option value="">全部科目</option>
+          <option value="1">语文</option>
+          <option value="2">数学</option>
+          <option value="3">英语</option>
+          <option value="4">物理</option>
+          <option value="5">化学</option>
+        </select>
+        <select id="filterType" onchange="loadPapers()" class="px-4 py-2 rounded-lg">
+          <option value="">全部类型</option>
+          <option value="1">月考</option>
+          <option value="2">期中</option>
+          <option value="3">期末</option>
+          <option value="4">一模</option>
+          <option value="5">二模</option>
+          <option value="6">开学</option>
+          <option value="7">单元</option>
+        </select>
+        <button onclick="searchPapers()" class="px-6 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg">搜索</button>
+        <button onclick="showBatchDeleteModal()" class="px-6 py-2 bg-red-600 hover:bg-red-500 rounded-lg">🗑️ 批量删除</button>
+      </div>
+
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-700">
+            <th class="p-3 text-left w-8"><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+            <th class="p-3 text-left">标题</th>
+            <th class="p-3 text-center w-20">年级</th>
+            <th class="p-3 text-center w-20">科目</th>
+            <th class="p-3 text-center w-24">类型</th>
+            <th class="p-3 text-center w-24">下载</th>
+            <th class="p-3 text-center w-32">操作</th>
+          </tr>
+        </thead>
+        <tbody id="paperList"></tbody>
+      </table>
+
+      <div class="flex items-center justify-between mt-4 flex-wrap gap-4">
+        <div class="flex items-center gap-2">
+          <span class="text-gray-400 text-sm">每页：</span>
+          <select id="pageSize" onchange="changePageSize()" class="px-3 py-1 rounded bg-gray-800 border border-gray-600 text-white">
+            <option value="10" selected>10条</option>
+            <option value="20">20条</option>
+            <option value="30">30条</option>
+            <option value="50">50条</option>
+            <option value="100">100条</option>
+          </select>
+          <span class="text-gray-400 text-sm" id="pageInfo">共 0 条</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="prevPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white">上一页</button>
+          <button onclick="nextPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white">下一页</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- 更新日志Tab -->
   <div id="changelog" class="section" style="display:none;">
@@ -151,10 +221,42 @@
 
     document.addEventListener('DOMContentLoaded', () => { createStars(); checkAuth(); });
 
-    function showTab(tabId) {
-  // 显示更新日志 tab
-  if (tabId === 'changelog') {
-    document.getElementById('changelog').style.display = 'block';
+    
+let currentPage = 1, pageSize = 10, totalPapers = 0, selectedIds = new Set();
+async function loadPapers() {
+  const res = await fetch('/sjxz/api/admin/papers?page=' + currentPage + '&limit=' + pageSize);
+  const data = await res.json();
+  totalPapers = data.total || 0;
+  const papers = data.papers || [];
+  const tbody = document.getElementById('paperList');
+  tbody.innerHTML = papers.map(p => '<tr class="border-b border-gray-700"><td class="p-3"><input type="checkbox" onchange="toggleSelect(' + p.id + ')" ' + (selectedIds.has(p.id) ? 'checked' : '') + '></td><td class="p-3">' + p.title + '</td><td class="p-3 text-center">' + (p.grade_name || '') + '</td><td class="p-3 text-center">' + (p.subject_name || '') + '</td><td class="p-3 text-center">' + (p.type_name || '') + '</td><td class="p-3 text-center"><a href="/sjxz/api/papers/' + p.id + '/download" class="text-cyan-400">下载</a></td><td class="p-3 text-center"><button onclick="deletePaper(' + p.id + ')" class="text-red-400">删除</button></td></tr>').join('');
+  document.getElementById('pageInfo').textContent = '共 ' + totalPapers + ' 条';
+}
+function searchPapers() { loadPapers(); }
+function changePageSize() { pageSize = parseInt(document.getElementById('pageSize').value); currentPage = 1; loadPapers(); }
+function prevPage() { if (currentPage > 1) { currentPage--; loadPapers(); } }
+function nextPage() { if (currentPage * pageSize < totalPapers) { currentPage++; loadPapers(); } }
+function toggleSelectAll() { const checked = document.getElementById('selectAll').checked; /* todo */ }
+function toggleSelect(id) { if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); }
+async function deletePaper(id) { if (confirm('确定删除？')) { await fetch('/sjxz/api/admin/papers/' + id, { method: 'DELETE' }); loadPapers(); } }
+function showBatchDeleteModal() { const p = prompt('输入管理员密码'); if (p) batchDelete(p); }
+async function batchDelete(password) {
+  const res = await fetch('/sjxz/api/admin/papers/batch/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: Array.from(selectedIds), password }) });
+  const d = await res.json();
+  alert('删除了 ' + d.deletedCount + ' 个试卷');
+  selectedIds.clear();
+  loadPapers();
+}
+
+function showTab(tabId) {
+  // 隐藏所有section
+  document.querySelectorAll('.section').forEach(s => s.style.display = 'none');
+  // 显示对应的section
+  const section = document.getElementById(tabId);
+  if (section) {
+    section.style.display = 'block';
+    if (tabId === 'manage') loadPapers();
+    if (tabId === 'changelog') renderChangelog();
   }
 }
 
