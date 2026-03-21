@@ -61,7 +61,7 @@
     </div>
 
     <!-- 资料上传Tab -->
-    <div id="upload" class="section active">
+    <div id="upload" class="section">
       <div class="glass-card rounded-xl p-6 mb-6">
         <div id="upload-zone" class="upload-zone rounded-xl p-12 text-center cursor-pointer">
           <div class="text-4xl mb-4">📁</div>
@@ -227,7 +227,7 @@
       '师大附中', '长郡', '雅礼', '青一', '广益', '华益', '长梅', '周南', '明德', '一中', '双语', '博才', '麓山', '培粹'
     ];
 
-    document.addEventListener('DOMContentLoaded', () => { createStars(); checkAuth(); });
+    document.addEventListener('DOMContentLoaded', () => { createStars(); const saved = localStorage.getItem('upSection'); if(saved) showSection(saved); else { showSection('upload'); } checkAuth(); });
 
     function createStars() {
       const c = document.getElementById('stars');
@@ -266,10 +266,6 @@
     }
 
     // 页面加载后恢复tab
-    window.addEventListener('load', () => {
-      const saved = localStorage.getItem('upSection');
-      if (saved) showSection(saved);
-    });
 
     function initUpload() {
       const zone = document.getElementById('upload-zone'), input = document.getElementById('file-input');
