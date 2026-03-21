@@ -139,11 +139,21 @@
           <tbody id="paperList"></tbody>
         </table>
 
-        <div class="flex items-center justify-between mt-4">
-          <span class="text-gray-400 text-sm" id="pageInfo">第 1 页</span>
+        <div class="flex items-center justify-between mt-4 flex-wrap gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-gray-400 text-sm">每页：</span>
+            <select id="pageSize" onchange="changePageSize()" class="px-3 py-1 rounded bg-gray-800 border border-gray-600 text-white">
+              <option value="10" selected>10条</option>
+              <option value="20">20条</option>
+              <option value="30">30条</option>
+              <option value="50">50条</option>
+              <option value="100">100条</option>
+            </select>
+            <span class="text-gray-400 text-sm" id="pageInfo">共 0 条</span>
+          </div>
           <div class="flex gap-2">
-            <button onclick="prevPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">上一页</button>
-            <button onclick="nextPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded">下一页</button>
+            <button onclick="prevPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white">上一页</button>
+            <button onclick="nextPage()" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white">下一页</button>
           </div>
         </div>
       </div>
@@ -160,6 +170,7 @@
             <div class="text-gray-300 mt-2">
               <p class="mb-2">✅ 修复Tab切换失效问题（JavaScript语法错误）</p>
               <p class="mb-2">✅ 修复刷新页面时tab闪烁问题</p>
+              <p class="mb-2">✅ 试卷管理添加分页功能（默认10条/页）</p>
             </div>
           </div>
           <div class="border-l-2 border-cyan-500 pl-4">
@@ -212,7 +223,7 @@
     let files = [];
     let papers = [];
     let page = 1;
-    let pageSize = 20;
+    let pageSize = 10;
     let selectedIds = new Set();
 
     const GRADE_NAMES = { 7: '初一', 8: '初二', 9: '初三' };
@@ -431,7 +442,8 @@
     function renderPapers(list) {
       const start = (page - 1) * pageSize;
       const pageData = list.slice(start, start + pageSize);
-      document.getElementById('pageInfo').textContent = `第 ${page} 页，共 ${list.length} 条`;
+      const totalPages = Math.ceil(list.length / pageSize) || 1;
+      document.getElementById("pageInfo").textContent = `共 ${list.length} 条，第 ${page}/${totalPages} 页`;
       document.getElementById('paperList').innerHTML = pageData.map(p => `
         <tr class="border-b border-gray-800 hover:bg-gray-800/50">
           <td class="p-3"><input type="checkbox" onchange="toggleSelect(${p.id})" ${selectedIds.has(p.id) ? 'checked' : ''}></td>
@@ -455,6 +467,11 @@
     }
 
     function toggleSelect(id) { if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id); }
+    function changePageSize() {
+      pageSize = parseInt(document.getElementById("pageSize").value);
+      page = 1;
+      applyFilters();
+    }
     function prevPage() { if (page > 1) { page--; applyFilters(); } }
     function nextPage() { page++; applyFilters(); }
 
