@@ -232,10 +232,16 @@
 
     // Tab切换
     function showSection(name) {
+      localStorage.setItem('upSection', name);
       document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
       document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
       document.getElementById(name).classList.add('active');
-      event.target.classList.add('active');
+      // 根据name激活对应按钮
+      const sectionMap = {'upload': 0, 'manage': 1, 'changelog': 2};
+      const buttons = document.querySelectorAll('.nav-tab');
+      if (sectionMap[name] !== undefined && buttons[sectionMap[name]]) {
+        buttons[sectionMap[name]].classList.add('active');
+      }
       
       if (name === 'manage') loadPapers();
     }
@@ -249,6 +255,12 @@
         initUpload();
       } catch (e) { localStorage.removeItem('up_token'); window.location.href = '/up/login.html'; }
     }
+
+    // 页面加载后恢复tab
+    window.addEventListener('load', () => {
+      const saved = localStorage.getItem('upSection');
+      if (saved) showSection(saved);
+    });
 
     function initUpload() {
       const zone = document.getElementById('upload-zone'), input = document.getElementById('file-input');
