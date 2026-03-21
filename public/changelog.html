@@ -101,6 +101,19 @@
     // 更新日志数据
     const changelog = [
       {
+        version: '1.1.0',
+        date: '2026-03-21',
+        title: '🗄️ 数据库迁移到 MySQL',
+        tags: ['fix'],
+        changes: [
+          '✅ 三个系统（up/kh/sjk）全部迁移到 MySQL 数据库',
+          '✅ 创建统一数据库 education_db',
+          '✅ 修复上传试卷到试卷库失败问题（region_id需传数字）',
+          '✅ 修复试卷库后台无法显示试卷列表（API返回格式修复）',
+          '✅ 添加批量删除试卷功能'
+        ]
+      },
+      {
         version: '1.0.2',
         date: '2026-03-20',
         title: '🔐 管理员登录功能',
